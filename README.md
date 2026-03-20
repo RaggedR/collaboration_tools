@@ -30,21 +30,32 @@ The key idea: **to change what the app does, you edit `schema.config` — not co
 ## Repo Structure
 
 ```
-schema.config        # THE master document — defines entity types, relationships, permissions
-BACKEND.md           # Backend architecture and project structure (Dart)
-FRONTEND.md          # Frontend architecture — YOUR guide, Nick
-API.md               # Full API contract (REST endpoints, request/response shapes)
+schema.config            # THE master document — defines entity types, relationships, permissions
+SCHEMA.md                # Schema design rationale and format explanation
+BACKEND.md               # Backend architecture and project structure (Dart)
+FRONTEND.md              # Frontend architecture — YOUR guide, Nick
+API.md                   # Full API contract (REST endpoints, request/response shapes)
+PRELIMINARY_IDEAS.md     # Early design thinking and brainstorming
 docs/
-  COMPONENT_API.md   # Component-level API details
+  ARCHITECTURE.md        # Overall system architecture
+  COMPONENT_API.md       # API layer — route handlers, request/response
+  COMPONENT_AUTH.md      # Authentication and JWT
+  COMPONENT_CONFIG.md    # Schema loading and config management
+  COMPONENT_DATABASE.md  # Database schema and queries
+  COMPONENT_MODELS.md    # Data models (Entity, Relationship, etc.)
+  COMPONENT_SERVER.md    # Server setup and startup
+  PERMISSIONS.md         # Permission system design
 ```
 
 ## For Nick: Getting Started
 
 ### 1. Read these files (in order)
 
-1. **`schema.config`** — Understand the data model (entity types, relationships, permissions)
-2. **`API.md`** — This is your contract. Every endpoint you'll call is documented here
-3. **`FRONTEND.md`** — The full frontend design spec, including screen architecture, state management, and your deliverables list
+1. **`docs/ARCHITECTURE.md`** — Big picture: how the system fits together
+2. **`schema.config`** — The data model (entity types, relationships, permissions)
+3. **`API.md`** — Your contract. Every endpoint you'll call is documented here
+4. **`FRONTEND.md`** — The full frontend design spec, including screen architecture, state management, and your deliverables list
+5. **`docs/PERMISSIONS.md`** — How permissions work (you'll need this for showing/hiding UI elements)
 
 ### 2. Your Deliverables
 
