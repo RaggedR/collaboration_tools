@@ -1,0 +1,50 @@
+Friday 20 March 2026. 8:45am
+
+- decided on CMS rather than CRS
+- agreed Nick do frontend Robin do backend
+- keep the repo on Enspyre
+- two minute meeting every hour, take notes, push to repo
+- Robin is the secretary who takes notes
+- plan for next hours: brainstorming, no code.
+- upload both plans to repo
+- we are using flutter on frontend, data on backend
+
+
+
+need to agree on API
+what content? content model
+shelf dart backend
+should we just do blogs?
+wordpress
+
+notes for self;
+ - what kind of content are we managing?
+ - an educational knowledge graph with documents as first-class participants.
+ - 23 flutter learning problems (model)
+ - document model for gates
+ - sharing documents in video chat
+ - grant writing
+ - kan, outlier, drupal
+ - Saas is dead
+ - melb-tech
+ - permission system
+ - kan's datamodel is flat
+ - could steal from kan for grant writing
+ - document hierachy, markdown, search
+ - outlier document model: tree (wiki not knowledge graph)
+ - Drupal's entity/field/bundle system is arguably the most flexible
+  content model ever shipped
+ - The philosophy. Everything is an entity. Relationships are fields on entities. New
+  content types are configuration, not code. This is exactly what our nodes + relationships
+   + rel_types schema does, just expressed differently.
+   Views. Drupal's Views module lets you build queries visually — "show me all challenges
+  tagged 'beginner' that teach a concept required by any challenge in this learning path."
+  That's a graph traversal exposed through UI. Nick should steal this idea for the admin
+  panel. Related to search?
+- Drupal discovered the graph model empirically. It started as a flat CMS and over 20 years
+   evolved entity references, paragraphs, taxonomy hierarchies — all of which are graph
+  edges by another name. We get to start with that insight and build the graph model from
+  day one, without the accumulated legacy.
+- melb-tech
+- name
+- abstract CMS - two usecases (grant writing, tech world, blogs?)

@@ -1,0 +1,17 @@
+name: outlier
+description: Accountability tracker with kanban and knowledge graph
+version: 0.1.0
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  postgres: ^3.1.0
+  shelf: ^1.4.0
+  shelf_router: ^1.1.0
+  dart_jsonwebtoken: ^2.14.0
+  dbcrypt: ^2.0.0
+
+dev_dependencies:
+  test: ^1.25.0
+  http: ^1.2.0
