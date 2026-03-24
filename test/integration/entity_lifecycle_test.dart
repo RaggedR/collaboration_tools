@@ -26,7 +26,7 @@ void main() {
 
     // Clean stale data from prior runs
     await db.execute('DELETE FROM relationships');
-    await db.execute('UPDATE users SET person_entity_id = NULL');
+    try { await db.execute('UPDATE users SET person_entity_id = NULL'); } catch (_) {}
     await db.execute('DELETE FROM entities');
     await db.execute('DELETE FROM users');
 
@@ -42,7 +42,7 @@ void main() {
 
   tearDown(() async {
     await db.execute('DELETE FROM relationships');
-    await db.execute('UPDATE users SET person_entity_id = NULL');
+    try { await db.execute('UPDATE users SET person_entity_id = NULL'); } catch (_) {}
     await db.execute('DELETE FROM entities');
   });
 
