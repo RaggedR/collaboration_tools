@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/models/auth.dart';
 
+/// Compile-time flag: build with --dart-define=AUTO_LOGIN=true to skip login.
+const _autoLogin = bool.fromEnvironment('AUTO_LOGIN') || !kReleaseMode;
+
 /// Authentication state.
 class AuthState {
   final User? user;
@@ -60,7 +63,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true);
     final token = await _tokenStore.read();
     if (token == null) {
-      if (kDebugMode) {
+      if (_autoLogin) {
         await _devAutoLogin();
       } else {
         state = const AuthState();
@@ -72,7 +75,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(user: user);
     } catch (_) {
       await _tokenStore.clear();
-      if (kDebugMode) {
+      if (_autoLogin) {
         await _devAutoLogin();
       } else {
         state = const AuthState();

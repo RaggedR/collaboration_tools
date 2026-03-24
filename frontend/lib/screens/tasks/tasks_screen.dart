@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../api/models/schema.dart';
 import '../../state/providers.dart';
 import '../../state/task_board_state.dart';
 import '../../widgets/kanban/kanban_board.dart';
 import '../../widgets/shared/filter_bar.dart';
+import '../../widgets/shared/status_badge.dart';
 import 'task_create_form.dart';
 import 'task_detail_panel.dart';
 
 /// Global kanban board + filter bar. Split-pane on desktop.
+///
+/// Column order, labels, colors, card fields, and filter options are all
+/// derived from the task entity type's ui_schema + metadata_schema.
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
 
@@ -16,10 +21,12 @@ class TasksScreen extends ConsumerStatefulWidget {
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
-  String? _priorityFilter;
+  /// Active filter values keyed by field name (e.g., {"priority": "high"}).
+  final _filterValues = <String, String?>{};
   String? _selectedTaskId;
 
-  static const _statusLabels = {
+  /// Hardcoded fallback — used only when schema hasn't loaded yet.
+  static const _fallbackStatusLabels = {
     'backlog': 'Backlog',
     'todo': 'To Do',
     'in_progress': 'In Progress',
@@ -35,6 +42,18 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final canCreate = permissions?.canCreate('task') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
 
+    // Get task entity type from schema
+    final schemaAsync = ref.watch(schemaProvider);
+    final taskType = schemaAsync.valueOrNull?.entityTypes
+        .cast<EntityType?>()
+        .firstWhere((t) => t?.key == 'task', orElse: () => null);
+    final ui = taskType?.uiSchema;
+
+    // Derive column config from schema
+    final statusOrder = _deriveStatusOrder(taskType);
+    final statusLabels = _deriveStatusLabels(taskType);
+    final columnColors = _deriveColumnColors(ui);
+
     return Column(
       children: [
         // Toolbar
@@ -43,30 +62,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
           child: Row(
             children: [
               Expanded(
-                child: FilterBar(
-                  filters: [
-                    FilterOption(
-                      label: 'Priority',
-                      value: _priorityFilter,
-                      options: const [
-                        FilterChoice(value: 'low', label: 'Low'),
-                        FilterChoice(value: 'medium', label: 'Medium'),
-                        FilterChoice(value: 'high', label: 'High'),
-                        FilterChoice(value: 'urgent', label: 'Urgent'),
-                      ],
-                      onChanged: (v) {
-                        setState(() => _priorityFilter = v);
-                        ref.read(taskBoardProvider.notifier).loadTasks(
-                              TaskFilters(priority: v),
-                            );
-                      },
-                    ),
-                  ],
-                  onClear: () {
-                    setState(() => _priorityFilter = null);
-                    ref.read(taskBoardProvider.notifier).loadTasks();
-                  },
-                ),
+                child: _buildFilters(taskType),
               ),
               if (canCreate)
                 FilledButton.icon(
@@ -85,7 +81,16 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               : isWide && _selectedTaskId != null
                   ? Row(
                       children: [
-                        Expanded(flex: 3, child: _buildBoard(boardState)),
+                        Expanded(
+                          flex: 3,
+                          child: _buildBoard(
+                            boardState,
+                            statusOrder,
+                            statusLabels,
+                            columnColors,
+                            ui,
+                          ),
+                        ),
                         const VerticalDivider(width: 1),
                         Expanded(
                           flex: 2,
@@ -101,17 +106,126 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                         ),
                       ],
                     )
-                  : _buildBoard(boardState),
+                  : _buildBoard(
+                      boardState,
+                      statusOrder,
+                      statusLabels,
+                      columnColors,
+                      ui,
+                    ),
         ),
       ],
     );
   }
 
-  Widget _buildBoard(TaskBoardState boardState) {
+  /// Derives column order from the task status enum in metadata_schema.
+  List<String> _deriveStatusOrder(EntityType? taskType) {
+    if (taskType == null) return defaultStatusOrder;
+
+    // Find the kanban column field from ui_schema
+    final kanbanField = taskType.uiSchema.kanbanColumnField ?? 'status';
+
+    // Get enum values from metadata_schema
+    final props =
+        taskType.metadataSchema['properties'] as Map<String, dynamic>?;
+    final fieldSchema = props?[kanbanField] as Map<String, dynamic>?;
+    final enumValues = fieldSchema?['enum'] as List?;
+
+    if (enumValues != null) return enumValues.cast<String>();
+    return defaultStatusOrder;
+  }
+
+  /// Derives column labels from the ui_schema label or humanized enum values.
+  Map<String, String> _deriveStatusLabels(EntityType? taskType) {
+    if (taskType == null) return _fallbackStatusLabels;
+
+    final kanbanField = taskType.uiSchema.kanbanColumnField ?? 'status';
+    final props =
+        taskType.metadataSchema['properties'] as Map<String, dynamic>?;
+    final fieldSchema = props?[kanbanField] as Map<String, dynamic>?;
+    final enumValues = fieldSchema?['enum'] as List?;
+
+    if (enumValues == null) return _fallbackStatusLabels;
+
+    return {
+      for (final v in enumValues.cast<String>()) v: _humanize(v),
+    };
+  }
+
+  /// Derives column header colors from ui_schema.
+  Map<String, Color> _deriveColumnColors(UiSchema? ui) {
+    if (ui == null) return {};
+
+    final kanbanField = ui.kanbanColumnField ?? 'status';
+    final colorMap = ui.colorsFor(kanbanField);
+
+    return {
+      for (final entry in colorMap.entries)
+        entry.key: StatusBadge.parseHex(entry.value),
+    };
+  }
+
+  /// Builds schema-driven filter bar.
+  Widget _buildFilters(EntityType? taskType) {
+    final ui = taskType?.uiSchema;
+    final filterFields = ui?.filters ?? ['priority'];
+
+    final metaProps =
+        taskType?.metadataSchema['properties'] as Map<String, dynamic>? ?? {};
+
+    final filters = <FilterOption>[];
+    for (final field in filterFields) {
+      final fieldSchema = metaProps[field] as Map<String, dynamic>?;
+      if (fieldSchema == null) continue;
+
+      final enumValues = fieldSchema['enum'] as List?;
+      if (enumValues == null) continue; // Only enum fields become filters
+
+      final label = ui?.labelFor(field) ?? _humanize(field);
+      filters.add(FilterOption(
+        label: label,
+        value: _filterValues[field],
+        options: enumValues
+            .cast<String>()
+            .map((v) => FilterChoice(value: v, label: _humanize(v)))
+            .toList(),
+        onChanged: (v) {
+          setState(() => _filterValues[field] = v);
+          _applyFilters();
+        },
+      ));
+    }
+
+    return FilterBar(
+      filters: filters,
+      onClear: () {
+        setState(() => _filterValues.clear());
+        ref.read(taskBoardProvider.notifier).loadTasks();
+      },
+    );
+  }
+
+  void _applyFilters() {
+    ref.read(taskBoardProvider.notifier).loadTasks(
+          TaskFilters(
+            priority: _filterValues['priority'],
+          ),
+        );
+  }
+
+  Widget _buildBoard(
+    TaskBoardState boardState,
+    List<String> statusOrder,
+    Map<String, String> statusLabels,
+    Map<String, Color> columnColors,
+    UiSchema? uiSchema,
+  ) {
     return KanbanBoard(
       columns: boardState.columns,
-      columnOrder: defaultStatusOrder,
-      columnLabels: _statusLabels,
+      columnOrder: statusOrder,
+      columnLabels: statusLabels,
+      columnColors: columnColors,
+      uiSchema: uiSchema,
       onStatusChange: (taskId, _, toStatus) {
         ref.read(taskBoardProvider.notifier).moveTask(taskId, toStatus);
       },
@@ -127,5 +241,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     if (created == true) {
       ref.read(taskBoardProvider.notifier).loadTasks();
     }
+  }
+
+  static String _humanize(String s) {
+    return s
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((w) => w.isEmpty ? '' : '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
   }
 }

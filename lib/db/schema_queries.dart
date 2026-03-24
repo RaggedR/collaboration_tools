@@ -55,6 +55,7 @@ class SchemaQueries {
       color: (m['color'] as String?) ?? '#6b7280',
       hidden: (m['hidden'] as bool?) ?? false,
       metadataSchema: m['metadata_schema'] as Map<String, dynamic>?,
+      uiSchema: m['ui_schema'] as Map<String, dynamic>?,
       sortOrder: (m['sort_order'] as int?) ?? 0,
     );
   }

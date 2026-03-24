@@ -69,7 +69,7 @@ void main() {
 
       final relTypes = await schemaQueries.listRelTypes();
 
-      expect(relTypes, hasLength(12));
+      expect(relTypes, hasLength(13));
       final keys = relTypes.map((rt) => rt.key).toSet();
       expect(keys, containsAll([
         'contains_project', 'contains_task', 'contains_doc',

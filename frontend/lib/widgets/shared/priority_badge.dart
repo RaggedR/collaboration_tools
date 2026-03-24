@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
+import 'status_badge.dart';
 
 /// Displays task priority as a coloured chip.
+///
+/// When [colorOverrides] is provided (from ui_schema), those colors take
+/// precedence over the built-in defaults.
 class PriorityBadge extends StatelessWidget {
   final String priority;
 
-  const PriorityBadge({super.key, required this.priority});
+  /// Optional color map from ui_schema (priority value -> hex color string).
+  final Map<String, String> colorOverrides;
 
-  static const _colors = {
+  const PriorityBadge({
+    super.key,
+    required this.priority,
+    this.colorOverrides = const {},
+  });
+
+  static const _defaultColors = {
     'low': Color(0xFF9CA3AF),
     'medium': Color(0xFF3B82F6),
     'high': Color(0xFFF97316),
@@ -20,22 +31,17 @@ class PriorityBadge extends StatelessWidget {
     'urgent': Icons.priority_high,
   };
 
-  Color get color => _colors[priority] ?? const Color(0xFF9CA3AF);
+  Color get color {
+    final hex = colorOverrides[priority];
+    if (hex != null) return StatusBadge.parseHex(hex);
+    return _defaultColors[priority] ?? const Color(0xFF9CA3AF);
+  }
+
   IconData get icon => _icons[priority] ?? Icons.help_outline;
 
   String get label {
-    switch (priority) {
-      case 'low':
-        return 'Low';
-      case 'medium':
-        return 'Medium';
-      case 'high':
-        return 'High';
-      case 'urgent':
-        return 'Urgent';
-      default:
-        return priority;
-    }
+    if (priority.isEmpty) return priority;
+    return '${priority[0].toUpperCase()}${priority.substring(1)}';
   }
 
   @override
