@@ -108,6 +108,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
             data: (paginated) {
+              // Load parent task names for visible documents.
+              final docIds = paginated.entities.map((e) => e.id).toList();
+              Future.microtask(() => ref
+                  .read(documentParentTaskProvider.notifier)
+                  .loadForDocuments(docIds));
+              final parentTasks = ref.watch(documentParentTaskProvider);
+
               final list = PaginatedList(
                 items: paginated.entities,
                 total: paginated.total,
@@ -119,8 +126,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                 },
                 itemBuilder: (context, entity) {
                   final docType = entity.metadata['doc_type'] as String?;
+                  final parentTask = parentTasks[entity.id];
                   return EntityCard(
                     entity: entity,
+                    subtitle: parentTask != null
+                        ? Text('Task: $parentTask',
+                            style: Theme.of(context).textTheme.bodySmall)
+                        : null,
                     trailing: docType != null
                         ? DocTypeBadge(docType: docType)
                         : null,

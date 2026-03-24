@@ -14,7 +14,7 @@ void main() {
       // 3. Enter name, email, password
       // 4. Tap Register
       // 5. Verify My Page appears with the user's name
-      // 6. Verify navigation shows 5 items (My Page, Tasks, Sprints, Docs, Graph)
+      // 6. Verify navigation shows 4 items (My Page, Tasks, Sprints, Docs)
     }, skip: true /* Stage 3 */);
 
     testWidgets('logs in with existing credentials', (tester) async {
