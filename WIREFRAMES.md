@@ -69,7 +69,7 @@ Chrome:
 │  │    ▸ ● Gateway   │                                          │
 │📄│    ▸ ● Acct Track│                                          │
 │  │      ○ Book Find │                                          │
-│  │      ✓ Embeddings│                                          │
+│◉ │      ✓ Embeddings│                                          │
 │  │                  │                                          │
 │  │  People          │                                          │
 │  │    Robin         │                                          │
@@ -86,6 +86,7 @@ Nav rail items (left column, top to bottom):
   ✓   Tasks         → /tasks
   ⏱   Sprints       → /sprints
   📄  Documents     → /documents
+  ◉   Graph         → /graph
   ─── (spacer)
   👤  User menu     → settings, logout
 
@@ -121,6 +122,8 @@ Sidebar items:
 │  │                                                             │
 │📄│                                                             │
 │  │                                                             │
+│◉ │                                                             │
+│  │                                                             │
 │  │                                                             │
 │──│                                                             │
 │▸ │  ← click to expand sidebar                                  │
@@ -131,7 +134,7 @@ Sidebar items:
 
 ### Mobile (<900px)
 
-**Steal from Kan**: Bottom navigation bar. 4 icons, evenly spaced. Active icon has a small dot below it rather than a background change (cleaner on small screens). The sidebar becomes a slide-out drawer triggered by a hamburger icon.
+**Steal from Kan**: Bottom navigation bar. 5 icons, evenly spaced. Active icon has a small dot below it rather than a background change (cleaner on small screens). The sidebar becomes a slide-out drawer triggered by a hamburger icon.
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -142,8 +145,8 @@ Sidebar items:
 │                                             │
 │                                             │
 ├─────────────────────────────────────────────┤
-│  🏠       ✓        ⏱        📄             │
-│  My      Tasks   Sprints   Docs            │
+│  🏠      ✓       ⏱       📄      ◉        │
+│  My     Tasks  Sprints  Docs    Graph      │
 │  Page                                      │
 └─────────────────────────────────────────────┘
 ```
@@ -352,7 +355,7 @@ Global kanban board — all tasks, or scoped to the project selected in the side
 │  ▸ Done (8)                                 │
 │                                             │
 ├─────────────────────────────────────────────┤
-│  🏠       ✓        ⏱        📄             │
+│  🏠      ✓       ⏱       📄      ◉        │
 └─────────────────────────────────────────────┘
 ```
 
@@ -567,6 +570,63 @@ Doc type badge colors (from ui_schema):
 │  │        │                    │  [Edit]  [Delete]                │
 │  │        │                    │                                  │
 └──┴────────┴────────────────────┴─────────────────────────────────┘
+```
+
+---
+
+## Screen 5: Graph (`/graph`)
+
+This screen is unique — no direct precedent from Outline, Kan, or Accountability. But we steal the *framing*:
+
+**Steal from Outline**: The filter controls sit in a collapsible panel on the left (like Outline's sidebar), not as a top bar. This gives the graph maximum vertical space, which matters for spatial visualization.
+
+```
+┌──┬────────┬───────────────────────────────────────────────────────┐
+│  │  ...   │                                                       │
+│  │sidebar │  ┌──────────────┐                                     │
+│  │  ...   │  │ Filter       │                                     │
+│  │        │  │              │      ○ Sprint 2                     │
+│  │        │  │ Entities     │     ╱                               │
+│  │        │  │ ☑ project    │ ○ Robin ── ○ Dashboard              │
+│  │        │  │ ☑ sprint     │     ╲        │                      │
+│  │        │  │ ☑ task       │      ○ Fix ──┘                      │
+│  │        │  │ ☑ document   │       auth    ╲                     │
+│  │        │  │ ☑ person     │       bug      ○ Arch               │
+│  │        │  │              │                 Overview            │
+│  │        │  │ Relations    │                                     │
+│  │        │  │ ☑ contains   │ ○ Nick ──── ○ Gateway              │
+│  │        │  │ ☑ assigned   │     ╲                               │
+│  │        │  │ ☑ authored   │      ○ Watermark ── ○ Pitch        │
+│  │        │  │ ☑ depends    │        libs          Deck           │
+│  │        │  │ ☑ sprint     │                                     │
+│  │        │  │ ☑ reference  │                                     │
+│  │        │  │              │                                     │
+│  │        │  │ Focus        │                                     │
+│  │        │  │ [Search... ] │                                     │
+│  │        │  │              │                                     │
+│  │        │  │ [Collapse ▴] │                                     │
+│  │        │  └──────────────┘                                     │
+│  │        │                                                       │
+└──┴────────┴───────────────────────────────────────────────────────┘
+```
+
+### Node info card (appears on tap/hover)
+
+**Steal from Kan**: Kan shows a quick preview when you hover a card before opening the full detail. We do the same: tap a graph node and a small card appears nearby with key info + an "Open" link to navigate.
+
+```
+           ○ Robin
+           │
+    ┌──────┴──────────────┐
+    │  Robin               │
+    │  person              │
+    │                     │
+    │  5 tasks assigned   │
+    │  2 sprints active   │
+    │  3 docs authored    │
+    │                     │
+    │  [Open My Page →]   │
+    └─────────────────────┘
 ```
 
 ---

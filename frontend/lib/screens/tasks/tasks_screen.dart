@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/models/schema.dart';
 import '../../state/providers.dart';
-import '../../state/sidebar_state.dart';
 import '../../state/task_board_state.dart';
 import '../../widgets/kanban/kanban_board.dart';
 import '../../widgets/shared/filter_bar.dart';
@@ -42,17 +41,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final permissions = ref.watch(permissionProvider);
     final canCreate = permissions?.canCreate('task') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
-    final selectedProjectName = ref.watch(
-      sidebarProvider.select((s) => s.selectedProjectName),
-    );
-
-    // Reload tasks when project scope changes.
-    ref.listen<String?>(
-      sidebarProvider.select((s) => s.selectedProjectId),
-      (prev, next) {
-        if (prev != next) _applyFilters();
-      },
-    );
 
     // Get task entity type from schema
     final schemaAsync = ref.watch(schemaProvider);
@@ -68,25 +56,6 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
 
     return Column(
       children: [
-        // Breadcrumb when project-scoped.
-        if (selectedProjectName != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Row(
-              children: [
-                Text(
-                  selectedProjectName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(width: 4),
-                Text(' > ', style: Theme.of(context).textTheme.titleSmall),
-                Text('Tasks', style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-          ),
         // Toolbar
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -231,7 +200,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       filters: filters,
       onClear: () {
         setState(() => _filterValues.clear());
-        _applyFilters();
+        ref.read(taskBoardProvider.notifier).loadTasks();
       },
     );
   }
@@ -241,9 +210,8 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     for (final entry in _filterValues.entries) {
       if (entry.value != null) metadata[entry.key] = entry.value;
     }
-    final projectId = ref.read(sidebarProvider).selectedProjectId;
     ref.read(taskBoardProvider.notifier).loadTasks(
-          TaskFilters(projectId: projectId, metadata: metadata),
+          TaskFilters(metadata: metadata),
         );
   }
 

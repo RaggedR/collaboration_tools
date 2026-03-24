@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'models/entity.dart';
 import 'models/relationship.dart';
 import 'models/schema.dart';
+import 'models/graph.dart';
 import 'models/auth.dart';
 
 /// Typed exceptions for API errors.
@@ -278,6 +279,22 @@ class ApiClient {
 
   Future<void> deleteRelationship(String id) async {
     await _delete('/api/relationships/$id');
+  }
+
+  // --- Graph ---
+
+  Future<Graph> getGraph({
+    String? rootId,
+    int? depth,
+    List<String>? types,
+  }) async {
+    final params = <String, String>{};
+    if (rootId != null) params['root_id'] = rootId;
+    if (depth != null) params['depth'] = depth.toString();
+    if (types != null) params['types'] = types.join(',');
+
+    final response = await _get('/api/graph', queryParams: params);
+    return Graph.fromJson(response);
   }
 
   // --- Internal HTTP helpers ---

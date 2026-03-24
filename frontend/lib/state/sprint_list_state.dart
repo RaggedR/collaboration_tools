@@ -23,20 +23,10 @@ class SprintListNotifier extends StateNotifier<AsyncValue<SprintGroups>> {
       : _api = api,
         super(const AsyncValue.loading());
 
-  Future<void> load({String? projectId}) async {
+  Future<void> load() async {
     state = const AsyncValue.loading();
     try {
-      final PaginatedEntities result;
-      if (projectId != null) {
-        result = await _api.listEntities(
-          type: 'sprint',
-          relatedTo: projectId,
-          relType: 'contains_sprint',
-          perPage: 200,
-        );
-      } else {
-        result = await _api.listSprints(perPage: 200);
-      }
+      final result = await _api.listSprints(perPage: 200);
       final now = DateTime.now();
       final current = <Entity>[];
       final upcoming = <Entity>[];
