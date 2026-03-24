@@ -18,6 +18,7 @@ class EntityQueries {
     required String name,
     required Map<String, dynamic> metadata,
     required String createdBy,
+    String? body,
   }) async {
     // Validate type exists (cache first, then database)
     final entityType = cache.getEntityType(type);
@@ -43,13 +44,14 @@ class EntityQueries {
 
     final result = await db.query(
       Sql.named('''
-        INSERT INTO entities (type, name, metadata, created_by)
-        VALUES (@type, @name, @metadata, @createdBy)
+        INSERT INTO entities (type, name, body, metadata, created_by)
+        VALUES (@type, @name, @body, @metadata, @createdBy)
         RETURNING *
       '''),
       parameters: {
         'type': type,
         'name': name,
+        'body': body,
         'metadata': jsonEncode(metadata),
         'createdBy': createdBy,
       },
@@ -76,6 +78,14 @@ class EntityQueries {
 
           if (personResult.isNotEmpty) {
             final personId = personResult.first.toColumnMap()['id'] as String;
+
+            // Determine correct direction: check if the rel type's
+            // source includes the entity type or the person type.
+            final relType = cache.getRelType(relTypeKey);
+            final personIsSource = relType != null &&
+                relType.sourceTypes.contains('person') &&
+                relType.targetTypes.contains(type);
+
             await db.query(
               Sql.named('''
                 INSERT INTO relationships (rel_type_key, source_entity_id, target_entity_id, created_by)
@@ -83,8 +93,8 @@ class EntityQueries {
               '''),
               parameters: {
                 'relTypeKey': relTypeKey,
-                'sourceId': entity.id,
-                'targetId': personId,
+                'sourceId': personIsSource ? personId : entity.id,
+                'targetId': personIsSource ? entity.id : personId,
                 'createdBy': createdBy,
               },
             );
@@ -156,6 +166,8 @@ class EntityQueries {
   Future<Entity> update(
     String id, {
     String? name,
+    String? body,
+    bool clearBody = false,
     Map<String, dynamic>? metadata,
   }) async {
     // Get the current entity to know its type
@@ -178,6 +190,7 @@ class EntityQueries {
       Sql.named('''
         UPDATE entities SET
           name = COALESCE(@name, name),
+          body = ${clearBody ? '@body' : 'COALESCE(@body, body)'},
           metadata = COALESCE(@metadata, metadata),
           updated_at = NOW()
         WHERE id = @id
@@ -186,6 +199,7 @@ class EntityQueries {
       parameters: {
         'id': id,
         'name': name,
+        'body': body,
         'metadata': metadata != null ? jsonEncode(metadata) : null,
       },
     );
@@ -205,23 +219,38 @@ class EntityQueries {
     String? type,
     String? search,
     Map<String, dynamic>? metadata,
+    String? relatedTo,
+    String? relType,
     int page = 1,
     int perPage = 50,
   }) async {
     final conditions = <String>[];
     final params = <String, dynamic>{};
+    var fromClause = 'entities';
 
     if (type != null) {
-      conditions.add('type = @type');
+      conditions.add('entities.type = @type');
       params['type'] = type;
     }
     if (search != null) {
-      conditions.add('name ILIKE @search');
+      conditions.add('entities.name ILIKE @search');
       params['search'] = '%$search%';
     }
     if (metadata != null && metadata.isNotEmpty) {
-      conditions.add('metadata @> @metadataFilter::jsonb');
+      conditions.add('entities.metadata @> @metadataFilter::jsonb');
       params['metadataFilter'] = jsonEncode(metadata);
+    }
+
+    // related_to filter: JOIN relationships table
+    if (relatedTo != null && relType != null) {
+      fromClause = '''entities
+        JOIN relationships ON (
+          (relationships.source_entity_id = entities.id AND relationships.target_entity_id = @relatedTo)
+          OR (relationships.target_entity_id = entities.id AND relationships.source_entity_id = @relatedTo)
+        )''';
+      conditions.add('relationships.rel_type_key = @relType');
+      params['relatedTo'] = relatedTo;
+      params['relType'] = relType;
     }
 
     final where =
@@ -229,7 +258,7 @@ class EntityQueries {
 
     // Count total
     final countResult = await db.query(
-      Sql.named('SELECT COUNT(*) as count FROM entities $where'),
+      Sql.named('SELECT COUNT(DISTINCT entities.id) as count FROM $fromClause $where'),
       parameters: params,
     );
     final total = countResult.first.toColumnMap()['count'] as int;
@@ -239,9 +268,10 @@ class EntityQueries {
     params['limit'] = perPage;
     params['offset'] = offset;
 
+    // Exclude body from list queries — it can be large; load on detail GET only.
     final result = await db.query(
       Sql.named(
-          'SELECT * FROM entities $where ORDER BY created_at DESC LIMIT @limit OFFSET @offset'),
+          'SELECT DISTINCT entities.id, entities.type, entities.name, entities.metadata, entities.created_by, entities.created_at, entities.updated_at FROM $fromClause $where ORDER BY entities.created_at DESC LIMIT @limit OFFSET @offset'),
       parameters: params,
     );
 
@@ -257,6 +287,7 @@ class EntityQueries {
       id: m['id'] as String,
       type: m['type'] as String,
       name: m['name'] as String,
+      body: m.containsKey('body') ? m['body'] as String? : null,
       metadata: m['metadata'] as Map<String, dynamic>? ?? {},
       createdBy: m['created_by'] as String?,
       createdAt: m['created_at'] as DateTime,

@@ -1,0 +1,6 @@
+# E2E tests share a single PostgreSQL database, so they must run sequentially.
+tags:
+  e2e:
+
+# Limit concurrency so E2E tests don't stomp each other's database state.
+concurrency: 1

@@ -16,11 +16,28 @@ void main() {
   setUpAll(() async {
     db = await Database.connect(testDatabaseUrl);
     await db.migrate();
+
+    // Clean stale data from prior runs
+    await db.execute('DELETE FROM relationships');
+    final hasUsers = await db.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public')");
+    if (hasUsers.first.toColumnMap()['exists'] == true) {
+      await db.execute('UPDATE users SET person_entity_id = NULL');
+      await db.execute('DELETE FROM users');
+    }
+    await db.execute('DELETE FROM entities');
+
     schemaQueries = SchemaQueries(db: db);
   });
 
   tearDown(() async {
-    // Clean config tables between tests
+    // Clean all tables between tests (respecting FK order)
+    await db.execute('DELETE FROM relationships');
+    final hasUsers2 = await db.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public')");
+    if (hasUsers2.first.toColumnMap()['exists'] == true) {
+      await db.execute('UPDATE users SET person_entity_id = NULL');
+      await db.execute('DELETE FROM users');
+    }
+    await db.execute('DELETE FROM entities');
     await db.execute('DELETE FROM permission_rules');
     await db.execute('DELETE FROM rel_types');
     await db.execute('DELETE FROM entity_types');
@@ -52,7 +69,7 @@ void main() {
 
       final relTypes = await schemaQueries.listRelTypes();
 
-      expect(relTypes, hasLength(11));
+      expect(relTypes, hasLength(12));
       final keys = relTypes.map((rt) => rt.key).toSet();
       expect(keys, containsAll([
         'contains_project', 'contains_task', 'contains_doc',

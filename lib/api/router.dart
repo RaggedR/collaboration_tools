@@ -14,6 +14,7 @@ import 'relationship_handler.dart';
 import 'schema_handler.dart';
 import 'graph_handler.dart';
 import 'plugin_handler.dart';
+import 'upload_handler.dart';
 
 Handler buildRouter({
   required Auth auth,
@@ -42,6 +43,7 @@ Handler buildRouter({
     cache: cache,
     onSchemaReloaded: onSchemaReloaded,
   )..setDatabase(db);
+  final uploadHandler = UploadHandler();
 
   // Auth (no middleware needed)
   router.post('/api/auth/register', (Request request) async {
@@ -154,6 +156,18 @@ Handler buildRouter({
       return _error('FORBIDDEN', 'Admin access required', status: 403);
     }
     return pluginHandler.install(request);
+  });
+
+  // Upload (auth required)
+  router.post('/api/upload', (Request request) async {
+    final user = await _authenticate(request, auth);
+    if (user == null) return _unauthorized();
+    return uploadHandler.upload(request);
+  });
+
+  // Serve uploaded files (no auth — static assets)
+  router.get('/uploads/<filename>', (Request request, String filename) {
+    return uploadHandler.serve(request, filename);
   });
 
   return router.call;

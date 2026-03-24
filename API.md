@@ -74,8 +74,12 @@ List entities with optional filters.
 | `type` | string | Filter by entity type key (e.g. `?type=task`) |
 | `search` | string | Search entity names |
 | `metadata` | JSON string | Filter by metadata fields (e.g. `?metadata={"status":"in_progress"}`) |
+| `related_to` | uuid | Filter by relationship: return entities related to this entity ID. Must be used with `rel_type`. |
+| `rel_type` | string | Relationship type key to filter by (e.g. `assigned_to`). Must be used with `related_to`. |
 | `page` | integer | Page number (default: 1) |
 | `per_page` | integer | Results per page (default: 50) |
+
+`related_to` + `rel_type` example: `GET /api/entities?type=task&related_to=<personId>&rel_type=assigned_to` returns all tasks assigned to that person.
 
 **Response:**
 ```json

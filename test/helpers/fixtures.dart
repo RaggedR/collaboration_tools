@@ -249,4 +249,5 @@ const userEmail = 'user@test.com';
 const userPassword = 'user-test-password';
 const userName = 'Test User';
 
-const testDatabaseUrl = 'postgresql://localhost:5432/outlier_test';
+final testDatabaseUrl = Platform.environment['DATABASE_URL'] ??
+    'postgresql://outlier:outlier@localhost:5433/outlier_test';

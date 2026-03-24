@@ -24,6 +24,15 @@ void main() {
     db = await Database.connect(testDatabaseUrl);
     await db.migrate();
 
+    // Clean stale data from prior runs
+    await db.execute('DELETE FROM relationships');
+    final hasUsers = await db.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public')");
+    if (hasUsers.first.toColumnMap()['exists'] == true) {
+      await db.execute('UPDATE users SET person_entity_id = NULL');
+      await db.execute('DELETE FROM users');
+    }
+    await db.execute('DELETE FROM entities');
+
     final config = loadSchemaConfig();
     await SchemaLoader.syncToDatabase(config, db);
 
@@ -36,6 +45,10 @@ void main() {
 
   tearDown(() async {
     await db.execute('DELETE FROM relationships');
+    final hasUsers = await db.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public')");
+    if (hasUsers.first.toColumnMap()['exists'] == true) {
+      await db.execute('UPDATE users SET person_entity_id = NULL');
+    }
     await db.execute('DELETE FROM entities');
   });
 
