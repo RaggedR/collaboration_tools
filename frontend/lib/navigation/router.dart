@@ -6,7 +6,6 @@ import '../screens/my_page/my_page_screen.dart';
 import '../screens/tasks/tasks_screen.dart';
 import '../screens/sprints/sprints_screen.dart';
 import '../screens/documents/documents_screen.dart';
-import '../screens/graph/graph_screen.dart';
 import 'app_shell.dart';
 import '../state/providers.dart';
 
@@ -74,14 +73,6 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/documents',
                 builder: (context, state) => const DocumentsScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/graph',
-                builder: (context, state) => const GraphScreen(),
               ),
             ],
           ),

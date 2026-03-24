@@ -13,7 +13,6 @@ import '../db/relationship_queries.dart';
 import 'entity_handler.dart';
 import 'relationship_handler.dart';
 import 'schema_handler.dart';
-import 'graph_handler.dart';
 import 'plugin_handler.dart';
 import 'upload_handler.dart';
 
@@ -35,11 +34,6 @@ Handler buildRouter({
   );
   final relHandler = RelationshipHandler(relationships: relationshipQueries);
   final schemaHandler = SchemaHandler(cache: cache);
-  final graphHandler = GraphHandler(
-    entities: entityQueries,
-    relationships: relationshipQueries,
-    cache: cache,
-  );
   final pluginHandler = PluginHandler(
     cache: cache,
     onSchemaReloaded: onSchemaReloaded,
@@ -134,13 +128,6 @@ Handler buildRouter({
     final user = await _authenticate(request, auth);
     if (user == null) return _unauthorized();
     return relHandler.delete(request, id);
-  });
-
-  // Graph (auth required)
-  router.get('/api/graph', (Request request) async {
-    final user = await _authenticate(request, auth);
-    if (user == null) return _unauthorized();
-    return graphHandler.getGraph(request);
   });
 
   // Plugins (auth required, admin-only for install)
