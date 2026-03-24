@@ -14,8 +14,10 @@ class TestServer {
   final String databaseUrl;
 
   TestServer({
-    this.databaseUrl = 'postgresql://outlier:outlier@localhost:5433/outlier_test',
-  });
+    String? databaseUrl,
+  }) : databaseUrl = databaseUrl ??
+            Platform.environment['DATABASE_URL'] ??
+            'postgresql://outlier:outlier@localhost:5433/outlier_test';
 
   String get baseUrl => 'http://localhost:$_actualPort';
 
