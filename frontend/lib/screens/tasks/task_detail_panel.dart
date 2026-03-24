@@ -5,13 +5,16 @@ import '../../state/providers.dart';
 import '../../widgets/shared/confirm_dialog.dart';
 import '../../widgets/shared/error_snackbar.dart';
 import '../../widgets/shared/metadata_form.dart';
-import '../../widgets/shared/priority_badge.dart';
 import '../../widgets/shared/relationship_list.dart';
-import '../../widgets/shared/status_badge.dart';
+import '../../widgets/shared/schema_fields_display.dart';
 import '../../api/api_client.dart';
 import '../../api/models/schema.dart';
 
 /// Detail panel for a single task — metadata, relationships, edit/delete.
+///
+/// Metadata fields are grouped by sections from the task entity type's
+/// ui_schema. Falls back to flat status + priority badges when no
+/// ui_schema is available.
 class TaskDetailPanel extends ConsumerWidget {
   final String taskId;
   final VoidCallback? onClose;
@@ -28,6 +31,10 @@ class TaskDetailPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(entityDetailProvider(taskId));
     final permissions = ref.watch(permissionProvider);
+    final schemaAsync = ref.watch(schemaProvider);
+    final taskType = schemaAsync.valueOrNull?.entityTypes
+        .cast<EntityType?>()
+        .firstWhere((t) => t?.key == 'task', orElse: () => null);
 
     return Card(
       margin: const EdgeInsets.all(8),
@@ -38,8 +45,6 @@ class TaskDetailPanel extends ConsumerWidget {
           final entity = entityWithRels.entity;
           final rels = entityWithRels.relationships;
           final canEdit = permissions?.canEdit(entity, rels) ?? false;
-          final status = entity.metadata['status'] as String?;
-          final priority = entity.metadata['priority'] as String?;
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -62,14 +67,13 @@ class TaskDetailPanel extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
 
-              // Status + Priority badges
-              Wrap(
-                spacing: 8,
-                children: [
-                  if (status != null) StatusBadge(status: status),
-                  if (priority != null) PriorityBadge(priority: priority),
-                ],
-              ),
+              // Schema-driven metadata fields
+              if (taskType != null)
+                SchemaFieldsDisplay(
+                  metadata: entity.metadata,
+                  uiSchema: taskType.uiSchema,
+                  metadataSchema: taskType.metadataSchema,
+                ),
               const SizedBox(height: 16),
 
               // Relationships
@@ -122,6 +126,7 @@ class TaskDetailPanel extends ConsumerWidget {
           width: 400,
           child: MetadataForm(
             metadataSchema: taskType?.metadataSchema ?? {},
+            uiSchema: taskType?.uiSchema,
             initialName: entity.name,
             initialValues: Map<String, dynamic>.from(entity.metadata),
             onSubmit: (name, metadata) async {

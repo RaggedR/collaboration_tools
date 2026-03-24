@@ -73,6 +73,7 @@ class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
               MetadataForm(
                 key: _metadataFormKey,
                 metadataSchema: taskType?.metadataSchema ?? {},
+                uiSchema: taskType?.uiSchema,
                 isLoading: _isLoading,
                 showSubmitButton: false,
                 onSubmit: (name, metadata) => _create(name, metadata),

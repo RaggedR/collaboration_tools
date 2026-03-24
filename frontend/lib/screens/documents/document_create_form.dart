@@ -85,6 +85,7 @@ class _DocumentCreateFormState extends ConsumerState<DocumentCreateForm> {
               MetadataForm(
                 key: _metadataFormKey,
                 metadataSchema: docType?.metadataSchema ?? {},
+                uiSchema: docType?.uiSchema,
                 isLoading: _isLoading,
                 showSubmitButton: false,
                 onSubmit: (name, metadata) => _create(name, metadata),

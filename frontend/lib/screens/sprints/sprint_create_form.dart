@@ -42,6 +42,7 @@ class _SprintCreateFormState extends ConsumerState<SprintCreateForm> {
               ],
               MetadataForm(
                 metadataSchema: sprintType?.metadataSchema ?? {},
+                uiSchema: sprintType?.uiSchema,
                 isLoading: _isLoading,
                 onSubmit: (name, metadata) => _create(name, metadata),
               ),

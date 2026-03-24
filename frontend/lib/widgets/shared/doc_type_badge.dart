@@ -1,12 +1,23 @@
 import 'package:flutter/material.dart';
+import 'status_badge.dart';
 
 /// Displays document type as a coloured chip.
+///
+/// When [colorOverrides] is provided (from ui_schema), those colors take
+/// precedence over the built-in defaults.
 class DocTypeBadge extends StatelessWidget {
   final String docType;
 
-  const DocTypeBadge({super.key, required this.docType});
+  /// Optional color map from ui_schema (doc_type value -> hex color string).
+  final Map<String, String> colorOverrides;
 
-  static const _colors = {
+  const DocTypeBadge({
+    super.key,
+    required this.docType,
+    this.colorOverrides = const {},
+  });
+
+  static const _defaultColors = {
     'spec': Color(0xFF3B82F6),
     'note': Color(0xFF10B981),
     'report': Color(0xFFF59E0B),
@@ -20,7 +31,12 @@ class DocTypeBadge extends StatelessWidget {
     'reference': Icons.menu_book,
   };
 
-  Color get color => _colors[docType] ?? const Color(0xFF9CA3AF);
+  Color get color {
+    final hex = colorOverrides[docType];
+    if (hex != null) return StatusBadge.parseHex(hex);
+    return _defaultColors[docType] ?? const Color(0xFF9CA3AF);
+  }
+
   IconData get icon => _icons[docType] ?? Icons.description;
 
   String get label {

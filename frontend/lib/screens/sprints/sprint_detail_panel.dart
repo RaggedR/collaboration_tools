@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/api_client.dart';
 import '../../api/models/entity.dart';
 import '../../api/models/schema.dart';
@@ -239,9 +240,11 @@ class SprintDetailPanel extends ConsumerWidget {
               else
                 ...taskRels.map((rel) => ListTile(
                       dense: true,
-                      leading:
-                          const Icon(Icons.check_circle_outline, size: 20),
+                      leading: const Icon(
+                          Icons.check_circle_outline, size: 20),
                       title: Text(rel.relatedEntity.name),
+                      trailing: const Icon(Icons.chevron_right, size: 18),
+                      onTap: () => context.go('/tasks'),
                     )),
 
               // Other relationships
@@ -440,6 +443,7 @@ class SprintDetailPanel extends ConsumerWidget {
           width: 400,
           child: MetadataForm(
             metadataSchema: sprintType?.metadataSchema ?? {},
+            uiSchema: sprintType?.uiSchema,
             initialName: entity.name,
             initialValues: Map<String, dynamic>.from(entity.metadata),
             onSubmit: (name, metadata) async {

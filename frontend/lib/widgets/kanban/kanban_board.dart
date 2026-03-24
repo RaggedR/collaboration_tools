@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../api/models/entity.dart';
+import '../../api/models/schema.dart';
 import 'kanban_column.dart';
 
 /// Reusable kanban board widget.
@@ -15,6 +16,12 @@ class KanbanBoard extends StatelessWidget {
 
   /// Column display names (e.g., {"in_progress": "In Progress"}).
   final Map<String, String> columnLabels;
+
+  /// Optional column header accent colors from ui_schema.
+  final Map<String, Color> columnColors;
+
+  /// Optional UI schema for card rendering hints.
+  final UiSchema? uiSchema;
 
   /// Called when a card is dragged to a new column.
   final void Function(String taskId, String fromStatus, String toStatus)?
@@ -34,6 +41,8 @@ class KanbanBoard extends StatelessWidget {
     required this.columns,
     required this.columnOrder,
     required this.columnLabels,
+    this.columnColors = const {},
+    this.uiSchema,
     this.onStatusChange,
     this.onTaskTap,
     this.readOnly = false,
@@ -54,6 +63,8 @@ class KanbanBoard extends StatelessWidget {
             child: KanbanColumn(
               status: status,
               label: columnLabels[status] ?? status,
+              headerColor: columnColors[status],
+              uiSchema: uiSchema,
               tasks: tasks,
               isCollapsed: isCollapsed,
               onTaskTap: onTaskTap,

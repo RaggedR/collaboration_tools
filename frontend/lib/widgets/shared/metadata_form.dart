@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import '../../api/models/schema.dart';
 
 /// A generic form widget built dynamically from a JSON Schema metadata_schema.
 ///
-/// This is the one schema-driven widget in the frontend — it builds form
-/// fields from the entity type's metadata_schema.
+/// When a [uiSchema] is provided, field order, labels, and widget hints
+/// are read from the ui_schema config. Otherwise falls back to the
+/// metadata_schema property order and humanized key names.
 class MetadataForm extends StatefulWidget {
   /// The JSON Schema for this entity type's metadata.
   final Map<String, dynamic> metadataSchema;
+
+  /// Optional UI schema for field ordering, labels, and widget hints.
+  final UiSchema? uiSchema;
 
   /// Current metadata values (for edit mode). Null for create mode.
   final Map<String, dynamic>? initialValues;
@@ -27,6 +32,7 @@ class MetadataForm extends StatefulWidget {
   const MetadataForm({
     super.key,
     required this.metadataSchema,
+    this.uiSchema,
     this.initialValues,
     required this.onSubmit,
     this.isLoading = false,
@@ -82,10 +88,10 @@ class MetadataFormState extends State<MetadataForm> {
           ),
           const SizedBox(height: 16),
 
-          // Dynamic metadata fields
-          ...properties.entries.map((entry) {
-            final fieldKey = entry.key;
-            final fieldSchema = Map<String, dynamic>.from(entry.value as Map);
+          // Dynamic metadata fields — ordered by ui_schema if available
+          ..._orderedKeys(properties).map((fieldKey) {
+            final fieldSchema =
+                Map<String, dynamic>.from(properties[fieldKey] as Map);
             final isRequired = required.contains(fieldKey);
             return _buildField(fieldKey, fieldSchema, isRequired);
           }),
@@ -110,12 +116,29 @@ class MetadataFormState extends State<MetadataForm> {
     );
   }
 
+  /// Returns field keys ordered by ui_schema.fieldOrder, with any
+  /// remaining keys appended in their original map order.
+  Iterable<String> _orderedKeys(Map<String, dynamic> properties) {
+    final ui = widget.uiSchema;
+    if (ui == null || ui.fieldOrder.isEmpty) return properties.keys;
+
+    final ordered = <String>[];
+    for (final key in ui.fieldOrder) {
+      if (properties.containsKey(key)) ordered.add(key);
+    }
+    // Append any properties not listed in ui:order
+    for (final key in properties.keys) {
+      if (!ordered.contains(key)) ordered.add(key);
+    }
+    return ordered;
+  }
+
   Widget _buildField(
       String key, Map<String, dynamic> schema, bool isRequired) {
     final type = schema['type'] as String?;
     final enumValues = schema['enum'] as List?;
     final format = schema['format'] as String?;
-    final label = _humanize(key);
+    final label = widget.uiSchema?.labelFor(key) ?? _humanize(key);
 
     // String with enum → dropdown
     if (type == 'string' && enumValues != null) {

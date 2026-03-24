@@ -36,6 +36,15 @@ class SchemaLoader {
         if (!entityTypeKeys.add(key)) {
           errors.add("duplicate entity type key: '$key'");
         }
+
+        // Validate ui_schema field references against metadata_schema
+        final uiSchema = et['ui_schema'] as Map<String, dynamic>?;
+        final metaSchema = et['metadata_schema'] as Map<String, dynamic>?;
+        if (uiSchema != null && metaSchema != null) {
+          final metaProps =
+              (metaSchema['properties'] as Map?)?.keys.toSet() ?? <String>{};
+          _validateUiSchemaRefs(errors, key, uiSchema, metaProps);
+        }
       }
     }
 
@@ -117,6 +126,76 @@ class SchemaLoader {
     return ValidationResult(errors);
   }
 
+  /// Checks that ui_schema field references (ui:order, card.fields,
+  /// detail.sections[].fields, filters) all point to real metadata properties.
+  static void _validateUiSchemaRefs(
+    List<String> errors,
+    String entityKey,
+    Map<String, dynamic> uiSchema,
+    Set<dynamic> metaProps,
+  ) {
+    void checkField(String context, String field) {
+      // Skip relationship refs like "@project.name"
+      if (field.startsWith('@')) return;
+      if (!metaProps.contains(field)) {
+        errors.add(
+            "ui_schema for '$entityKey' $context references unknown field: '$field'");
+      }
+    }
+
+    // ui:order
+    final order = uiSchema['ui:order'] as List?;
+    if (order != null) {
+      for (final f in order) {
+        checkField('ui:order', f as String);
+      }
+    }
+
+    // card.fields
+    final card = uiSchema['card'] as Map<String, dynamic>?;
+    if (card != null) {
+      final cardFields = card['fields'] as List?;
+      if (cardFields != null) {
+        for (final f in cardFields) {
+          checkField('card.fields', f as String);
+        }
+      }
+    }
+
+    // detail.sections[].fields
+    final detail = uiSchema['detail'] as Map<String, dynamic>?;
+    if (detail != null) {
+      final sections = detail['sections'] as List?;
+      if (sections != null) {
+        for (final section in sections) {
+          final s = section as Map<String, dynamic>;
+          final fields = s['fields'] as List?;
+          if (fields != null) {
+            for (final f in fields) {
+              checkField('detail.sections', f as String);
+            }
+          }
+        }
+      }
+    }
+
+    // filters
+    final filters = uiSchema['filters'] as List?;
+    if (filters != null) {
+      for (final f in filters) {
+        checkField('filters', f as String);
+      }
+    }
+
+    // properties — check that ui_schema.properties keys match metadata_schema
+    final uiProps = uiSchema['properties'] as Map<String, dynamic>?;
+    if (uiProps != null) {
+      for (final key in uiProps.keys) {
+        checkField('properties', key);
+      }
+    }
+  }
+
   /// Syncs a validated config into the database.
   /// Runs in a single transaction: upserts entity_types, upserts rel_types,
   /// replaces permission_rules.
@@ -140,8 +219,8 @@ class SchemaLoader {
         final m = et as Map<String, dynamic>;
         await tx.execute(
           Sql.named('''
-            INSERT INTO entity_types (key, label, plural, icon, color, hidden, metadata_schema, sort_order)
-            VALUES (@key, @label, @plural, @icon, @color, @hidden, @metadataSchema, @sortOrder)
+            INSERT INTO entity_types (key, label, plural, icon, color, hidden, metadata_schema, ui_schema, sort_order)
+            VALUES (@key, @label, @plural, @icon, @color, @hidden, @metadataSchema, @uiSchema, @sortOrder)
             ON CONFLICT (key) DO UPDATE SET
               label = @label,
               plural = @plural,
@@ -149,6 +228,7 @@ class SchemaLoader {
               color = @color,
               hidden = @hidden,
               metadata_schema = @metadataSchema,
+              ui_schema = @uiSchema,
               sort_order = @sortOrder
           '''),
           parameters: {
@@ -160,6 +240,9 @@ class SchemaLoader {
             'hidden': m['hidden'] ?? false,
             'metadataSchema': m['metadata_schema'] != null
                 ? jsonEncode(m['metadata_schema'])
+                : null,
+            'uiSchema': m['ui_schema'] != null
+                ? jsonEncode(m['ui_schema'])
                 : null,
             'sortOrder': m['sort_order'] ?? 0,
           },

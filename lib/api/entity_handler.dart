@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:postgres/postgres.dart';
 import 'package:shelf/shelf.dart';
 
 import '../config/schema_cache.dart';
@@ -136,6 +137,13 @@ class EntityHandler {
         clearBody: body.containsKey('body') && body['body'] == null,
         metadata: body['metadata'] as Map<String, dynamic>?,
       );
+
+      // Auto-archive documents when all parent tasks are done
+      if (updated.type == 'task' &&
+          updated.metadata['status'] == 'done') {
+        await _autoArchiveDocuments(updated.id);
+      }
+
       return _json({'entity': updated.toJson()});
     } on StateError {
       return _error('NOT_FOUND', 'Entity not found', status: 404);
@@ -153,6 +161,57 @@ class EntityHandler {
           headers: {'Content-Type': 'application/json'});
     } on StateError {
       return _error('NOT_FOUND', 'Entity not found', status: 404);
+    }
+  }
+
+  /// When a task moves to "done", check all documents attached to it
+  /// (via contains_doc). If ALL tasks that own a document are "done",
+  /// auto-archive the document.
+  Future<void> _autoArchiveDocuments(String taskId) async {
+    // Find all documents attached to this task via contains_doc
+    final docRels = await entities.db.query(
+      Sql.named('''
+        SELECT target_entity_id FROM relationships
+        WHERE source_entity_id = @taskId
+          AND rel_type_key = 'contains_doc'
+      '''),
+      parameters: {'taskId': taskId},
+    );
+
+    for (final row in docRels) {
+      final docId = row.toColumnMap()['target_entity_id'] as String;
+
+      // Find ALL tasks that own this document
+      final parentTasks = await entities.db.query(
+        Sql.named('''
+          SELECT e.metadata FROM relationships r
+          JOIN entities e ON e.id = r.source_entity_id
+          WHERE r.target_entity_id = @docId
+            AND r.rel_type_key = 'contains_doc'
+            AND e.type = 'task'
+        '''),
+        parameters: {'docId': docId},
+      );
+
+      // Check if all parent tasks are "done"
+      final allDone = parentTasks.every((r) {
+        final meta = r.toColumnMap()['metadata'];
+        if (meta is Map<String, dynamic>) {
+          return meta['status'] == 'done';
+        }
+        return false;
+      });
+
+      if (allDone && parentTasks.isNotEmpty) {
+        // Archive the document
+        final doc = await entities.get(docId);
+        if (doc.metadata['status'] != 'archived') {
+          await entities.update(
+            docId,
+            metadata: {...doc.metadata, 'status': 'archived'},
+          );
+        }
+      }
     }
   }
 

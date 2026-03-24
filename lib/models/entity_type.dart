@@ -6,6 +6,7 @@ class EntityType {
   final String color;
   final bool hidden;
   final Map<String, dynamic>? metadataSchema;
+  final Map<String, dynamic>? uiSchema;
   final int sortOrder;
 
   EntityType({
@@ -16,6 +17,7 @@ class EntityType {
     this.color = '#6b7280',
     this.hidden = false,
     this.metadataSchema,
+    this.uiSchema,
     this.sortOrder = 0,
   });
 
@@ -27,6 +29,7 @@ class EntityType {
         color: (json['color'] as String?) ?? '#6b7280',
         hidden: (json['hidden'] as bool?) ?? false,
         metadataSchema: json['metadata_schema'] as Map<String, dynamic>?,
+        uiSchema: json['ui_schema'] as Map<String, dynamic>?,
         sortOrder: (json['sort_order'] as int?) ?? 0,
       );
 
@@ -38,6 +41,7 @@ class EntityType {
         'color': color,
         'hidden': hidden,
         if (metadataSchema != null) 'metadata_schema': metadataSchema,
+        if (uiSchema != null) 'ui_schema': uiSchema,
         'sort_order': sortOrder,
       };
 }

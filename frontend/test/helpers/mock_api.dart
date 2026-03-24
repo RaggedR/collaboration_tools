@@ -174,6 +174,7 @@ class TestFixtures {
               },
             },
           },
+          uiSchema: UiSchema.empty,
         ),
         EntityType(
           key: 'person',
@@ -182,6 +183,7 @@ class TestFixtures {
           icon: 'person',
           color: '#ec4899',
           hidden: false,
+          uiSchema: UiSchema.empty,
           metadataSchema: {
             'type': 'object',
             'properties': {

@@ -40,7 +40,7 @@ void main() {
       await tester
           .pumpWidget(wrap(const PriorityBadge(priority: 'custom')));
 
-      expect(find.text('custom'), findsOneWidget);
+      expect(find.text('Custom'), findsOneWidget);
     });
 
     test('correct colors for each priority', () {

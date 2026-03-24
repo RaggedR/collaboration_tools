@@ -93,8 +93,8 @@ void main() {
         columnLabels: columnLabels,
       )));
 
-      expect(find.text('(2)'), findsOneWidget); // todo column count
-      expect(find.text('(0)'), findsWidgets); // empty columns
+      expect(find.text('2'), findsOneWidget); // todo column count
+      expect(find.text('0'), findsWidgets); // empty columns
     });
 
     testWidgets('calls onTaskTap when card is tapped', (tester) async {

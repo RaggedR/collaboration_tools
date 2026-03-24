@@ -144,6 +144,7 @@ class DocumentDetailPanel extends ConsumerWidget {
                     MetadataForm(
                       key: metadataFormKey,
                       metadataSchema: docEntityType?.metadataSchema ?? {},
+                      uiSchema: docEntityType?.uiSchema,
                       initialName: entity.name,
                       initialValues:
                           Map<String, dynamic>.from(entity.metadata),
