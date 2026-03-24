@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/document_list_state.dart';
 import '../../state/providers.dart';
-import '../../state/sidebar_state.dart';
 import '../../widgets/shared/doc_type_badge.dart';
 import '../../widgets/shared/entity_card.dart';
 import '../../widgets/shared/filter_bar.dart';
@@ -45,32 +44,9 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     final permissions = ref.watch(permissionProvider);
     final canCreate = permissions?.canCreate('document') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
-    final selectedProjectName = ref.watch(
-      sidebarProvider.select((s) => s.selectedProjectName),
-    );
 
     return Column(
       children: [
-        // Breadcrumb when project-scoped.
-        if (selectedProjectName != null)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Row(
-              children: [
-                Text(
-                  selectedProjectName,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                const SizedBox(width: 4),
-                Text(' > ', style: Theme.of(context).textTheme.titleSmall),
-                Text('Documents',
-                    style: Theme.of(context).textTheme.titleSmall),
-              ],
-            ),
-          ),
         // Search + filters toolbar
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
