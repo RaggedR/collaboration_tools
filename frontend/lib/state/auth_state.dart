@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
 import '../api/models/auth.dart';
@@ -59,8 +60,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = state.copyWith(isLoading: true);
     final token = await _tokenStore.read();
     if (token == null) {
-      // Dev auto-login: register or login a dev user so we skip the login screen
-      await _devAutoLogin();
+      if (kDebugMode) {
+        await _devAutoLogin();
+      } else {
+        state = const AuthState();
+      }
       return;
     }
     try {
@@ -68,8 +72,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState(user: user);
     } catch (_) {
       await _tokenStore.clear();
-      // Token was invalid — try dev auto-login
-      await _devAutoLogin();
+      if (kDebugMode) {
+        await _devAutoLogin();
+      } else {
+        state = const AuthState();
+      }
     }
   }
 

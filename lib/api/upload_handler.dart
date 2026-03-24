@@ -29,39 +29,62 @@ class UploadHandler {
       return _error('VALIDATION_ERROR', 'Missing multipart boundary');
     }
     final boundary = boundaryMatch.group(1)!;
+    final boundaryBytes = utf8.encode('--$boundary');
 
-    // Read full body
+    // Read full body as bytes
     final bytes = await request.read().expand((chunk) => chunk).toList();
     if (bytes.length > _maxFileSize) {
       return _error('VALIDATION_ERROR', 'File exceeds 10MB limit');
     }
 
-    // Parse multipart manually (Shelf doesn't include multipart parsing)
-    final bodyString = String.fromCharCodes(bytes);
-    final parts = bodyString.split('--$boundary');
-
+    // Find multipart parts by scanning for boundary bytes
     String? filename;
     List<int>? fileBytes;
 
-    for (final part in parts) {
-      if (part.trim() == '--' || part.trim().isEmpty) continue;
+    final partStarts = <int>[];
+    for (var i = 0; i <= bytes.length - boundaryBytes.length; i++) {
+      if (_bytesMatch(bytes, i, boundaryBytes)) {
+        partStarts.add(i + boundaryBytes.length);
+      }
+    }
 
-      final headerEnd = part.indexOf('\r\n\r\n');
-      if (headerEnd == -1) continue;
+    for (var p = 0; p < partStarts.length; p++) {
+      final partStart = partStarts[p];
+      final partEnd = p + 1 < partStarts.length
+          ? partStarts[p + 1] - boundaryBytes.length
+          : bytes.length;
 
-      final headers = part.substring(0, headerEnd);
-      if (!headers.contains('filename=')) continue;
+      // Skip leading \r\n after boundary
+      var headerStart = partStart;
+      if (headerStart < bytes.length - 1 &&
+          bytes[headerStart] == 0x0D &&
+          bytes[headerStart + 1] == 0x0A) {
+        headerStart += 2;
+      }
 
-      // Extract filename
-      final fnMatch = RegExp(r'filename="([^"]+)"').firstMatch(headers);
+      // Find header/body separator: \r\n\r\n
+      final separatorIndex = _findDoubleCRLF(bytes, headerStart, partEnd);
+      if (separatorIndex == -1) continue;
+
+      final headerBytes = bytes.sublist(headerStart, separatorIndex);
+      final headerStr = utf8.decode(headerBytes, allowMalformed: true);
+
+      if (!headerStr.contains('filename=')) continue;
+
+      // Extract filename from Content-Disposition header
+      final fnMatch = RegExp(r'filename="([^"]+)"').firstMatch(headerStr);
       if (fnMatch == null) continue;
       filename = fnMatch.group(1)!;
 
-      // Extract file content (as bytes from original byte array)
-      // Find the position in the byte array
-      final partStart = bodyString.indexOf(part);
-      final contentStart = partStart + headerEnd + 4; // skip \r\n\r\n
-      final contentEnd = partStart + part.length - 2; // trim trailing \r\n
+      // File content starts after \r\n\r\n, ends before trailing \r\n
+      final contentStart = separatorIndex + 4;
+      var contentEnd = partEnd;
+      // Strip trailing \r\n before next boundary
+      if (contentEnd >= 2 &&
+          bytes[contentEnd - 2] == 0x0D &&
+          bytes[contentEnd - 1] == 0x0A) {
+        contentEnd -= 2;
+      }
       fileBytes = bytes.sublist(contentStart, contentEnd);
       break;
     }
@@ -70,15 +93,20 @@ class UploadHandler {
       return _error('VALIDATION_ERROR', 'No file found in upload');
     }
 
+    // Sanitize filename: keep only alphanumeric, dots, hyphens, underscores
+    final sanitized = filename
+        .replaceAll(RegExp(r'[^\w.\-]'), '_')
+        .replaceAll(RegExp(r'_+'), '_');
+
     // Validate extension
-    final ext = filename.split('.').last.toLowerCase();
+    final ext = sanitized.split('.').last.toLowerCase();
     if (!_allowedExtensions.contains(ext)) {
       return _error('VALIDATION_ERROR',
           'File type not allowed. Allowed: ${_allowedExtensions.join(', ')}');
     }
 
     // Generate unique filename
-    final uniqueName = '${_generateId()}_$filename';
+    final uniqueName = '${_generateId()}_$sanitized';
     final dir = Directory(uploadsDir);
     if (!dir.existsSync()) dir.createSync(recursive: true);
 
@@ -107,6 +135,28 @@ class UploadHandler {
     final bytes = await file.readAsBytes();
 
     return Response.ok(bytes, headers: {'Content-Type': contentType});
+  }
+
+  /// Check if bytes at [offset] match [pattern].
+  static bool _bytesMatch(List<int> data, int offset, List<int> pattern) {
+    if (offset + pattern.length > data.length) return false;
+    for (var i = 0; i < pattern.length; i++) {
+      if (data[offset + i] != pattern[i]) return false;
+    }
+    return true;
+  }
+
+  /// Find \r\n\r\n in byte array between [start] and [end].
+  static int _findDoubleCRLF(List<int> data, int start, int end) {
+    for (var i = start; i < end - 3; i++) {
+      if (data[i] == 0x0D &&
+          data[i + 1] == 0x0A &&
+          data[i + 2] == 0x0D &&
+          data[i + 3] == 0x0A) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   String _mimeType(String ext) {
