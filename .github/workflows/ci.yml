@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: outlier
+          POSTGRES_PASSWORD: outlier
+          POSTGRES_DB: outlier_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U outlier"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: '3.10.7'
+
+      - name: Install backend dependencies
+        run: dart pub get
+
+      - name: Analyze backend
+        run: dart analyze lib/
+
+      - name: Run backend tests
+        run: dart test
+        env:
+          DATABASE_URL: postgresql://outlier:outlier@localhost:5432/outlier_test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        run: |
+          if [ -f "./scripts/deploy.sh" ]; then
+            chmod +x ./scripts/deploy.sh
+            ./scripts/deploy.sh
+          else
+            echo "No deploy script found, skipping deploy"
+          fi

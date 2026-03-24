@@ -2,3 +2,6 @@
 .packages
 build/
 pubspec.overrides.yaml
+uploads/
+!uploads/.gitkeep
+.env
