@@ -14,6 +14,50 @@ import 'package:outlier/db/relationship_queries.dart';
 import 'package:outlier/api/router.dart';
 import 'package:outlier/api/plugin_handler.dart';
 
+/// Static file handler for the Flutter web build.
+/// Falls back to index.html for client-side routing.
+Handler _staticFileHandler(String webRoot) {
+  return (Request request) {
+    var path = request.url.path;
+    if (path.isEmpty) path = 'index.html';
+
+    final file = File('$webRoot/$path');
+    if (file.existsSync()) {
+      final contentType = _mimeType(path);
+      return Response.ok(
+        file.openRead(),
+        headers: {'Content-Type': contentType},
+      );
+    }
+
+    // SPA fallback — serve index.html for unmatched routes
+    final index = File('$webRoot/index.html');
+    if (index.existsSync()) {
+      return Response.ok(
+        index.openRead(),
+        headers: {'Content-Type': 'text/html'},
+      );
+    }
+
+    return Response.notFound('Not found');
+  };
+}
+
+String _mimeType(String path) {
+  if (path.endsWith('.html')) return 'text/html';
+  if (path.endsWith('.js')) return 'application/javascript';
+  if (path.endsWith('.css')) return 'text/css';
+  if (path.endsWith('.json')) return 'application/json';
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  if (path.endsWith('.ico')) return 'image/x-icon';
+  if (path.endsWith('.woff2')) return 'font/woff2';
+  if (path.endsWith('.woff')) return 'font/woff';
+  if (path.endsWith('.ttf')) return 'font/ttf';
+  return 'application/octet-stream';
+}
+
 /// CORS middleware — allows browser requests from any origin (dev mode).
 Middleware _corsMiddleware() {
   return (Handler innerHandler) {
@@ -110,7 +154,20 @@ void main() async {
       .addHandler(handler);
 
   final server = await shelf_io.serve(pipeline, InternetAddress.anyIPv4, port);
-  stderr.writeln('Server listening on port ${server.port}');
+  stderr.writeln('API server listening on port ${server.port}');
+
+  // 11. Optionally serve Flutter web frontend on a separate port
+  final webPortStr = Platform.environment['WEB_PORT'];
+  final webPort = int.tryParse(webPortStr ?? '');
+  final webDir = Directory('web');
+  if (webPort != null && webDir.existsSync()) {
+    final webHandler = const Pipeline()
+        .addMiddleware(_corsMiddleware())
+        .addHandler(_staticFileHandler(webDir.path));
+    final webServer =
+        await shelf_io.serve(webHandler, InternetAddress.anyIPv4, webPort);
+    stderr.writeln('Web server listening on port ${webServer.port}');
+  }
 
   // Handle graceful shutdown
   ProcessSignal.sigint.watch().listen((_) async {

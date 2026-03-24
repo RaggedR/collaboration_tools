@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
@@ -170,6 +171,27 @@ Handler buildRouter({
     return uploadHandler.serve(request, filename);
   });
 
+  // Serve Flutter web build as SPA fallback
+  final webDir = Directory('web');
+  if (webDir.existsSync()) {
+    router.all('/<path|.*>', (Request request, String path) {
+      final file = File('web/$path');
+      if (file.existsSync()) {
+        return Response.ok(file.openRead(), headers: {
+          'Content-Type': _mimeType(path),
+        });
+      }
+      // SPA fallback — serve index.html for client-side routing
+      final index = File('web/index.html');
+      if (index.existsSync()) {
+        return Response.ok(index.openRead(), headers: {
+          'Content-Type': 'text/html',
+        });
+      }
+      return Response.notFound('Not found');
+    });
+  }
+
   return router.call;
 }
 
@@ -203,4 +225,19 @@ Response _error(String code, String message, {int status = 400, String? field}) 
 
 Response _unauthorized() {
   return _error('UNAUTHORIZED', 'Authentication required', status: 401);
+}
+
+String _mimeType(String path) {
+  if (path.endsWith('.html')) return 'text/html';
+  if (path.endsWith('.js')) return 'application/javascript';
+  if (path.endsWith('.css')) return 'text/css';
+  if (path.endsWith('.json')) return 'application/json';
+  if (path.endsWith('.png')) return 'image/png';
+  if (path.endsWith('.jpg') || path.endsWith('.jpeg')) return 'image/jpeg';
+  if (path.endsWith('.svg')) return 'image/svg+xml';
+  if (path.endsWith('.ico')) return 'image/x-icon';
+  if (path.endsWith('.woff2')) return 'font/woff2';
+  if (path.endsWith('.woff')) return 'font/woff';
+  if (path.endsWith('.ttf')) return 'font/ttf';
+  return 'application/octet-stream';
 }
