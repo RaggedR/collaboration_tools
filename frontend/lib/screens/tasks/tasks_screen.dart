@@ -206,10 +206,12 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 
   void _applyFilters() {
+    final metadata = <String, dynamic>{};
+    for (final entry in _filterValues.entries) {
+      if (entry.value != null) metadata[entry.key] = entry.value;
+    }
     ref.read(taskBoardProvider.notifier).loadTasks(
-          TaskFilters(
-            priority: _filterValues['priority'],
-          ),
+          TaskFilters(metadata: metadata),
         );
   }
 
