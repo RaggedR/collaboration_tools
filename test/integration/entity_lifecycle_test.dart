@@ -24,6 +24,12 @@ void main() {
     db = await Database.connect(testDatabaseUrl);
     await db.migrate();
 
+    // Clean stale data from prior runs
+    await db.execute('DELETE FROM relationships');
+    await db.execute('UPDATE users SET person_entity_id = NULL');
+    await db.execute('DELETE FROM entities');
+    await db.execute('DELETE FROM users');
+
     final config = loadSchemaConfig();
     await SchemaLoader.syncToDatabase(config, db);
 
@@ -36,6 +42,7 @@ void main() {
 
   tearDown(() async {
     await db.execute('DELETE FROM relationships');
+    await db.execute('UPDATE users SET person_entity_id = NULL');
     await db.execute('DELETE FROM entities');
   });
 

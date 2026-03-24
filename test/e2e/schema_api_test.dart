@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 import 'dart:convert';
 import 'package:test/test.dart';
 import '../helpers/test_client.dart';
@@ -49,7 +50,7 @@ void main() {
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final app = body['app'] as Map<String, dynamic>;
 
-      expect(app['name'], equals('Outlier'));
+      expect(app['name'], equals('Collaboration Tools'));
       expect(app['description'], isA<String>());
       expect(app['theme_color'], matches(RegExp(r'^#[0-9a-fA-F]{6}$')));
     });
@@ -83,13 +84,13 @@ void main() {
       ]));
     });
 
-    test('returns all 11 relationship types from schema.config', () async {
+    test('returns all 12 relationship types from schema.config', () async {
       final response = await client.getSchema();
       final body = jsonDecode(response.body) as Map<String, dynamic>;
       final relTypes = body['rel_types'] as List;
       final keys = relTypes.map((rt) => (rt as Map)['key']).toSet();
 
-      expect(relTypes, hasLength(11));
+      expect(relTypes, hasLength(12));
       expect(keys, contains('assigned_to'));
       expect(keys, contains('depends_on'));
       expect(keys, contains('collaborates'));
@@ -152,7 +153,7 @@ void main() {
       expect(response.statusCode, equals(200));
 
       final body = jsonDecode(response.body) as List;
-      expect(body, hasLength(11));
+      expect(body, hasLength(12));
       expect(body.first, contains('key'));
       expect(body.first, contains('forward_label'));
     });

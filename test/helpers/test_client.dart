@@ -77,6 +77,8 @@ class TestClient {
     String? type,
     String? search,
     Map<String, dynamic>? metadata,
+    String? relatedTo,
+    String? relType,
     int? page,
     int? perPage,
   }) {
@@ -84,6 +86,8 @@ class TestClient {
     if (type != null) params['type'] = type;
     if (search != null) params['search'] = search;
     if (metadata != null) params['metadata'] = jsonEncode(metadata);
+    if (relatedTo != null) params['related_to'] = relatedTo;
+    if (relType != null) params['rel_type'] = relType;
     if (page != null) params['page'] = page.toString();
     if (perPage != null) params['per_page'] = perPage.toString();
     final uri =
@@ -97,18 +101,25 @@ class TestClient {
   Future<http.Response> createEntity({
     required String type,
     required String name,
+    String? body,
     Map<String, dynamic> metadata = const {},
   }) {
     return _client.post(
       Uri.parse('$baseUrl/api/entities'),
       headers: _headers,
-      body: jsonEncode({'type': type, 'name': name, 'metadata': metadata}),
+      body: jsonEncode({
+        'type': type,
+        'name': name,
+        if (body != null) 'body': body,
+        'metadata': metadata,
+      }),
     );
   }
 
   Future<http.Response> updateEntity(
     String id, {
     String? name,
+    String? body,
     Map<String, dynamic>? metadata,
   }) {
     return _client.put(
@@ -116,6 +127,7 @@ class TestClient {
       headers: _headers,
       body: jsonEncode({
         if (name != null) 'name': name,
+        if (body != null) 'body': body,
         if (metadata != null) 'metadata': metadata,
       }),
     );

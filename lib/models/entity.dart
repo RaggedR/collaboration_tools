@@ -2,6 +2,7 @@ class Entity {
   final String id;
   final String type;
   final String name;
+  final String? body;
   final Map<String, dynamic> metadata;
   final String? createdBy;
   final DateTime createdAt;
@@ -11,6 +12,7 @@ class Entity {
     required this.id,
     required this.type,
     required this.name,
+    this.body,
     required this.metadata,
     this.createdBy,
     required this.createdAt,
@@ -21,6 +23,7 @@ class Entity {
         'id': id,
         'type': type,
         'name': name,
+        if (body != null) 'body': body,
         'metadata': metadata,
         'created_by': createdBy,
         'created_at': createdAt.toUtc().toIso8601String(),

@@ -28,6 +28,8 @@ class EntityHandler {
       type: params['type'],
       search: params['search'],
       metadata: metadata,
+      relatedTo: params['related_to'],
+      relType: params['rel_type'],
       page: int.tryParse(params['page'] ?? '') ?? 1,
       perPage: int.tryParse(params['per_page'] ?? '') ?? 50,
     );
@@ -59,6 +61,7 @@ class EntityHandler {
         jsonDecode(await request.readAsString()) as Map<String, dynamic>;
     final type = body['type'] as String?;
     final name = body['name'] as String?;
+    final entityBody = body['body'] as String?;
     final metadata =
         body['metadata'] as Map<String, dynamic>? ?? {};
 
@@ -78,6 +81,7 @@ class EntityHandler {
       final entity = await entities.create(
         type: type,
         name: name,
+        body: entityBody,
         metadata: metadata,
         createdBy: user['id'] as String,
       );
@@ -128,6 +132,8 @@ class EntityHandler {
       final updated = await entities.update(
         id,
         name: body['name'] as String?,
+        body: body['body'] as String?,
+        clearBody: body.containsKey('body') && body['body'] == null,
         metadata: body['metadata'] as Map<String, dynamic>?,
       );
       return _json({'entity': updated.toJson()});

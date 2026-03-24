@@ -56,11 +56,22 @@ class Database {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         type TEXT NOT NULL REFERENCES entity_types(key),
         name TEXT NOT NULL,
+        body TEXT,
         metadata JSONB NOT NULL DEFAULT '{}',
         created_by UUID,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+    ''');
+
+    // Migration: add body column for existing databases
+    await _conn.execute('''
+      ALTER TABLE entities ADD COLUMN IF NOT EXISTS body TEXT;
+    ''');
+
+    // Migration: add ui_schema column for schema-driven UI
+    await _conn.execute('''
+      ALTER TABLE entity_types ADD COLUMN IF NOT EXISTS ui_schema JSONB;
     ''');
 
     await _conn.execute('''

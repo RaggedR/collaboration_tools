@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:postgres/postgres.dart';
+
 /// Manages a test server process for E2E tests.
 ///
 /// Starts the Dart backend against a test database, waits for it to be
@@ -12,13 +14,42 @@ class TestServer {
   final String databaseUrl;
 
   TestServer({
-    this.databaseUrl = 'postgresql://localhost:5432/outlier_test',
+    this.databaseUrl = 'postgresql://outlier:outlier@localhost:5433/outlier_test',
   });
 
   String get baseUrl => 'http://localhost:$_actualPort';
 
+  /// Truncates all application tables so each test suite starts clean.
+  Future<void> _resetDatabase() async {
+    final uri = Uri.parse(databaseUrl);
+    final conn = await Connection.open(
+      Endpoint(
+        host: uri.host.isEmpty ? 'localhost' : uri.host,
+        port: uri.port == 0 ? 5433 : uri.port,
+        database:
+            uri.pathSegments.isNotEmpty ? uri.pathSegments.first : 'outlier_test',
+        username: uri.userInfo.contains(':')
+            ? uri.userInfo.split(':').first
+            : uri.userInfo.isNotEmpty
+                ? uri.userInfo
+                : 'outlier',
+        password:
+            uri.userInfo.contains(':') ? uri.userInfo.split(':').last : null,
+      ),
+      settings: ConnectionSettings(sslMode: SslMode.disable),
+    );
+
+    // Drop all tables so each suite starts with a fresh schema.
+    // The server's migrate() call will recreate them.
+    await conn.execute(
+        'DROP TABLE IF EXISTS relationships, entities, users, permission_rules, rel_types, entity_types CASCADE');
+    await conn.close();
+  }
+
   /// Starts the server and waits until it responds to health checks.
   Future<void> start() async {
+    await _resetDatabase();
+
     _process = await Process.start(
       'dart',
       ['run', 'bin/server.dart'],

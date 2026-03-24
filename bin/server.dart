@@ -14,6 +14,27 @@ import 'package:outlier/db/relationship_queries.dart';
 import 'package:outlier/api/router.dart';
 import 'package:outlier/api/plugin_handler.dart';
 
+/// CORS middleware — allows browser requests from any origin (dev mode).
+Middleware _corsMiddleware() {
+  return (Handler innerHandler) {
+    return (Request request) async {
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      };
+
+      // Handle preflight OPTIONS requests.
+      if (request.method == 'OPTIONS') {
+        return Response.ok('', headers: corsHeaders);
+      }
+
+      final response = await innerHandler(request);
+      return response.change(headers: corsHeaders);
+    };
+  };
+}
+
 void main() async {
   final port = int.tryParse(Platform.environment['PORT'] ?? '') ?? 8080;
   final databaseUrl = Platform.environment['DATABASE_URL'] ??
@@ -84,6 +105,7 @@ void main() async {
 
   // 10. Start server
   final pipeline = const Pipeline()
+      .addMiddleware(_corsMiddleware())
       .addMiddleware(logRequests())
       .addHandler(handler);
 

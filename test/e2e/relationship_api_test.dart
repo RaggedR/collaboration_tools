@@ -1,3 +1,4 @@
+@Tags(['e2e'])
 import 'dart:convert';
 import 'package:test/test.dart';
 import '../helpers/test_client.dart';
