@@ -3,7 +3,6 @@ import 'package:collaboration_tools/api/api_client.dart';
 import 'package:collaboration_tools/api/models/entity.dart';
 import 'package:collaboration_tools/api/models/relationship.dart';
 import 'package:collaboration_tools/api/models/schema.dart';
-import 'package:collaboration_tools/api/models/graph.dart';
 import 'package:collaboration_tools/api/models/auth.dart';
 
 class MockApiClient extends Mock implements ApiClient {}

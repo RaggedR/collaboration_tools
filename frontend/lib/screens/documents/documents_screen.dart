@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/document_list_state.dart';
 import '../../state/providers.dart';
+import '../../state/sidebar_state.dart';
 import '../../widgets/shared/doc_type_badge.dart';
 import '../../widgets/shared/entity_card.dart';
 import '../../widgets/shared/filter_bar.dart';
@@ -44,9 +45,32 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     final permissions = ref.watch(permissionProvider);
     final canCreate = permissions?.canCreate('document') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
+    final selectedProjectName = ref.watch(
+      sidebarProvider.select((s) => s.selectedProjectName),
+    );
 
     return Column(
       children: [
+        // Breadcrumb when project-scoped.
+        if (selectedProjectName != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Text(
+                  selectedProjectName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(width: 4),
+                Text(' > ', style: Theme.of(context).textTheme.titleSmall),
+                Text('Documents',
+                    style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+          ),
         // Search + filters toolbar
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -108,6 +132,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
             data: (paginated) {
+              // Load parent task names for visible documents.
+              final docIds = paginated.entities.map((e) => e.id).toList();
+              Future.microtask(() => ref
+                  .read(documentParentTaskProvider.notifier)
+                  .loadForDocuments(docIds));
+              final parentTasks = ref.watch(documentParentTaskProvider);
+
               final list = PaginatedList(
                 items: paginated.entities,
                 total: paginated.total,
@@ -119,8 +150,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
                 },
                 itemBuilder: (context, entity) {
                   final docType = entity.metadata['doc_type'] as String?;
+                  final parentTask = parentTasks[entity.id];
                   return EntityCard(
                     entity: entity,
+                    subtitle: parentTask != null
+                        ? Text('Task: $parentTask',
+                            style: Theme.of(context).textTheme.bodySmall)
+                        : null,
                     trailing: docType != null
                         ? DocTypeBadge(docType: docType)
                         : null,
