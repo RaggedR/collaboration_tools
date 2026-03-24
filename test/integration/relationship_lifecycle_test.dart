@@ -25,9 +25,12 @@ void main() {
 
     // Clean stale data from prior runs
     await db.execute('DELETE FROM relationships');
-    try { await db.execute('UPDATE users SET person_entity_id = NULL'); } catch (_) {}
+    final hasUsers = await db.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public')");
+    if (hasUsers.first.toColumnMap()['exists'] == true) {
+      await db.execute('UPDATE users SET person_entity_id = NULL');
+      await db.execute('DELETE FROM users');
+    }
     await db.execute('DELETE FROM entities');
-    await db.execute('DELETE FROM users');
 
     final config = loadSchemaConfig();
     await SchemaLoader.syncToDatabase(config, db);
@@ -41,7 +44,10 @@ void main() {
 
   tearDown(() async {
     await db.execute('DELETE FROM relationships');
-    try { await db.execute('UPDATE users SET person_entity_id = NULL'); } catch (_) {}
+    final hasUsers = await db.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users' AND table_schema = 'public')");
+    if (hasUsers.first.toColumnMap()['exists'] == true) {
+      await db.execute('UPDATE users SET person_entity_id = NULL');
+    }
     await db.execute('DELETE FROM entities');
   });
 
