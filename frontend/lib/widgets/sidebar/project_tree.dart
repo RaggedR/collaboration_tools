@@ -3,52 +3,66 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/models/entity.dart';
 import '../../state/sidebar_state.dart';
 
-/// Expandable project tree for the sidebar.
+/// Expandable workspace → project → sprint tree for the sidebar.
 ///
-/// Shows workspace name at top, projects with status dots,
-/// and sprints nested under expanded projects.
+/// Each workspace shows its name as a header, with projects nested below.
+/// Projects have status dots and expand to show sprints.
 class ProjectTree extends ConsumerWidget {
   const ProjectTree({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sidebar = ref.watch(sidebarProvider);
-    final workspaceName = sidebar.workspaces.isNotEmpty
-        ? sidebar.workspaces.first.name
-        : 'Workspace';
+
+    if (sidebar.workspaceNodes.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Text(
+          'NO WORKSPACES',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1.2,
+            color: Theme.of(context)
+                .colorScheme
+                .onSurface
+                .withValues(alpha: 0.5),
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Workspace name header — click to clear project filter.
-        InkWell(
-          onTap: () => ref.read(sidebarProvider.notifier).selectProject(null),
-          borderRadius: BorderRadius.circular(6),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    workspaceName.toUpperCase(),
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.5),
-                    ),
-                  ),
+        for (final wsNode in sidebar.workspaceNodes) ...[
+          // Workspace name header — click to clear project filter.
+          InkWell(
+            onTap: () =>
+                ref.read(sidebarProvider.notifier).selectProject(null),
+            borderRadius: BorderRadius.circular(6),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                wsNode.workspace.name.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.5),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
 
-        // Project list.
-        ...sidebar.projectNodes.map((node) => _ProjectItem(node: node)),
+          // Projects nested under this workspace.
+          ...wsNode.projects
+              .map((node) => _ProjectItem(node: node)),
+        ],
       ],
     );
   }
@@ -111,7 +125,8 @@ class _ProjectItem extends ConsumerWidget {
                     node.project.name,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight:
+                          isSelected ? FontWeight.w600 : FontWeight.w400,
                       color: isSelected
                           ? accentColor
                           : Theme.of(context).colorScheme.onSurface,
@@ -171,8 +186,8 @@ class _SprintItem extends StatelessWidget {
 
 /// Status indicator dot.
 ///
-/// Projects: ● active (blue), ○ paused (gray), ✓ completed (green)
-/// Sprints: ● active (green), ○ planning (gray), ✓ completed (blue)
+/// Projects: filled blue (active), outline gray (paused), check green (completed)
+/// Sprints: filled green (active), outline gray (planning), check blue (completed)
 class _StatusDot extends StatelessWidget {
   final String? status;
   final bool isProject;
@@ -201,22 +216,22 @@ class _StatusDot extends StatelessWidget {
     if (isProject) {
       switch (status) {
         case 'active':
-          return (const Color(0xFF3B82F6), true, false); // blue filled
+          return (const Color(0xFF3B82F6), true, false);
         case 'paused':
-          return (const Color(0xFF94A3B8), false, false); // gray outline
+          return (const Color(0xFF94A3B8), false, false);
         case 'completed':
-          return (const Color(0xFF10B981), false, true); // green check
+          return (const Color(0xFF10B981), false, true);
         default:
           return (const Color(0xFF94A3B8), false, false);
       }
     } else {
       switch (status) {
         case 'active':
-          return (const Color(0xFF10B981), true, false); // green filled
+          return (const Color(0xFF10B981), true, false);
         case 'planning':
-          return (const Color(0xFF94A3B8), false, false); // gray outline
+          return (const Color(0xFF94A3B8), false, false);
         case 'completed':
-          return (const Color(0xFF3B82F6), false, true); // blue check
+          return (const Color(0xFF3B82F6), false, true);
         default:
           return (const Color(0xFF94A3B8), false, false);
       }
