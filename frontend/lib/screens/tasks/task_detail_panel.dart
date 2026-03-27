@@ -100,7 +100,8 @@ class TaskDetailPanel extends ConsumerWidget {
               RelationshipList(
                 relationships: rels,
                 readOnly: !canEdit,
-                onEntityTap: (entity) => _navigateToEntity(context, entity),
+                onEntityTap: (entity) =>
+                    _navigateToEntity(context, ref, entity),
               ),
 
               // Edit / Delete actions
@@ -132,15 +133,18 @@ class TaskDetailPanel extends ConsumerWidget {
     );
   }
 
-  void _navigateToEntity(BuildContext context, RelatedEntity entity) {
+  void _navigateToEntity(
+      BuildContext context, WidgetRef ref, RelatedEntity entity) {
     switch (entity.type) {
       case 'person':
         GoRouter.of(context).go('/person/${entity.id}');
       case 'task':
+        ref.read(pendingTaskSelectionProvider.notifier).state = entity.id;
         GoRouter.of(context).go('/tasks');
       case 'sprint':
         GoRouter.of(context).go('/sprints');
       case 'document':
+        ref.read(pendingDocumentSelectionProvider.notifier).state = entity.id;
         GoRouter.of(context).go('/documents');
       case 'project':
         GoRouter.of(context).go('/tasks');

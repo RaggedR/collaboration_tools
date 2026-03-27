@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../api/models/entity.dart';
 import '../state/providers.dart';
 import '../state/sidebar_state.dart';
 
@@ -211,8 +212,20 @@ class _SidebarPanelState extends ConsumerState<_SidebarPanel> {
     final schemaAsync = ref.watch(schemaProvider);
     final sidebarAsync = ref.watch(sidebarDataProvider);
     final selectedProjectId = ref.watch(selectedProjectProvider);
+    final selectedWorkspaceId = ref.watch(selectedWorkspaceProvider);
+    final authState = ref.watch(authProvider);
+    final isAdmin = authState.isAdmin;
     final accentColor = Theme.of(context).colorScheme.primary;
     final appName = schemaAsync.valueOrNull?.app.name ?? 'CMS';
+
+    // Find selected workspace name
+    final workspaces = sidebarAsync.valueOrNull?.workspaces ?? [];
+    final selectedWorkspace = selectedWorkspaceId != null
+        ? workspaces
+            .where((w) => w.id == selectedWorkspaceId)
+            .firstOrNull
+        : null;
+    final headerLabel = selectedWorkspace?.name ?? appName;
 
     return Container(
       width: 200,
@@ -220,10 +233,73 @@ class _SidebarPanelState extends ConsumerState<_SidebarPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Workspace name — tap to clear project filter
-          InkWell(
-            onTap: () =>
-                ref.read(selectedProjectProvider.notifier).state = null,
+          // Workspace selector dropdown
+          PopupMenuButton<String>(
+            tooltip: 'Switch workspace',
+            offset: const Offset(0, 44),
+            onSelected: (value) {
+              if (value == '__create__') {
+                _showCreateWorkspaceDialog(context);
+              } else if (value == '__all__') {
+                ref.read(selectedWorkspaceProvider.notifier).state = null;
+                ref.read(selectedProjectProvider.notifier).state = null;
+              } else {
+                ref.read(selectedWorkspaceProvider.notifier).state = value;
+                ref.read(selectedProjectProvider.notifier).state = null;
+              }
+            },
+            itemBuilder: (context) => [
+              // "All workspaces" option
+              const PopupMenuItem<String>(
+                value: '__all__',
+                child: Text('All Workspaces'),
+              ),
+              const PopupMenuDivider(),
+              // Workspace list
+              ...workspaces.map((ws) => PopupMenuItem<String>(
+                    value: ws.id,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            ws.name,
+                            style: TextStyle(
+                              fontWeight: ws.id == selectedWorkspaceId
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                            ),
+                          ),
+                        ),
+                        if (isAdmin)
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 16),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                                minWidth: 24, minHeight: 24),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              _confirmDeleteWorkspace(context, ws);
+                            },
+                            tooltip: 'Delete workspace',
+                          ),
+                      ],
+                    ),
+                  )),
+              // Admin: create workspace option
+              if (isAdmin) ...[
+                const PopupMenuDivider(),
+                const PopupMenuItem<String>(
+                  value: '__create__',
+                  child: Row(
+                    children: [
+                      Icon(Icons.add, size: 16),
+                      SizedBox(width: 8),
+                      Text('New Workspace'),
+                    ],
+                  ),
+                ),
+              ],
+            ],
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
               child: Row(
@@ -241,15 +317,17 @@ class _SidebarPanelState extends ConsumerState<_SidebarPanel> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      appName,
+                      headerLabel,
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: isDark ? Colors.white : const Color(0xFF1E293B),
+                        color:
+                            isDark ? Colors.white : const Color(0xFF1E293B),
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  Icon(Icons.unfold_more, size: 16, color: _mutedText),
                 ],
               ),
             ),
@@ -374,6 +452,101 @@ class _SidebarPanelState extends ConsumerState<_SidebarPanel> {
         ),
       ),
     );
+  }
+
+  Future<void> _showCreateWorkspaceDialog(BuildContext context) async {
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+
+    final created = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Workspace'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Name',
+                hintText: 'e.g. Engineering',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                hintText: 'Optional',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final name = nameController.text.trim();
+              if (name.isEmpty) return;
+              final api = ref.read(apiClientProvider);
+              await api.createEntity(
+                type: 'workspace',
+                name: name,
+                metadata: {
+                  if (descController.text.trim().isNotEmpty)
+                    'description': descController.text.trim(),
+                },
+              );
+              if (ctx.mounted) Navigator.of(ctx).pop(true);
+            },
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (created == true) {
+      ref.invalidate(sidebarDataProvider);
+    }
+  }
+
+  Future<void> _confirmDeleteWorkspace(
+      BuildContext context, Entity workspace) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Workspace'),
+        content: Text(
+            'Delete "${workspace.name}"? Projects in this workspace will not be deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(ctx).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final api = ref.read(apiClientProvider);
+      await api.deleteEntity(workspace.id);
+      // If this was the selected workspace, clear selection
+      if (ref.read(selectedWorkspaceProvider) == workspace.id) {
+        ref.read(selectedWorkspaceProvider.notifier).state = null;
+      }
+      ref.invalidate(sidebarDataProvider);
+    }
   }
 }
 

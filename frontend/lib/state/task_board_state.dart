@@ -176,6 +176,11 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
         'status': toStatus,
       });
       print('[moveTask] API success: new status=${result.metadata['status']}');
+
+      // Auto-archive linked documents when task moves to "archived"
+      if (toStatus == 'archived') {
+        _autoArchiveLinkedDocuments(taskId);
+      }
     } catch (e) {
       // Rollback on API failure.
       print('[moveTask] API FAILED: $e');
@@ -183,6 +188,42 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
         tasks: previousTasks,
         columns: previousColumns,
       );
+    }
+  }
+
+  /// When a task is archived, check if all tasks linked to its documents
+  /// are also archived. If so, archive the document too.
+  Future<void> _autoArchiveLinkedDocuments(String taskId) async {
+    try {
+      final taskDetail = await _api.getEntity(taskId);
+      final docRels = taskDetail.relationships.where(
+        (r) => r.relTypeKey == 'contains_doc' && r.relatedEntity.type == 'document',
+      );
+
+      for (final docRel in docRels) {
+        final docId = docRel.relatedEntity.id;
+        // Find all tasks linked to this document
+        final linkedTasks = await _api.listEntities(
+          type: 'task',
+          relatedTo: docId,
+          relType: 'contains_doc',
+          perPage: 200,
+        );
+        final allArchived = linkedTasks.entities.every(
+          (t) => t.metadata['status'] == 'archived',
+        );
+        if (allArchived) {
+          final docDetail = await _api.getEntity(docId);
+          await _api.updateEntity(docId, metadata: {
+            ...docDetail.entity.metadata,
+            'status': 'archived',
+          });
+          print('[autoArchive] Archived document: ${docRel.relatedEntity.name}');
+        }
+      }
+    } catch (e) {
+      // Best-effort — don't break the UI if auto-archive fails
+      print('[autoArchive] Error: $e');
     }
   }
 
