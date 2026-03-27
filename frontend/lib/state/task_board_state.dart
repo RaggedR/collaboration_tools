@@ -128,8 +128,8 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
 
   /// Optimistic move with rollback on failure.
   ///
-  /// Looks up the task's current status from state (since KanbanBoard.onDrop
-  /// passes '' for fromStatus — see kanban_board.dart line 62).
+  /// Looks up the task's current status from state rather than trusting
+  /// the caller's fromStatus, since TasksScreen discards it.
   Future<void> moveTask(String taskId, String toStatus) async {
     final task = state.tasks.firstWhere((t) => t.id == taskId);
     final fromStatus = task.metadata['status'] as String? ?? 'backlog';
@@ -162,12 +162,50 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
         ...task.metadata,
         'status': toStatus,
       });
+
+      // Auto-archive linked documents when task is archived
+      if (toStatus == 'archived') {
+        _autoArchiveLinkedDocuments(taskId);
+      }
     } catch (_) {
       // Rollback.
       state = state.copyWith(
         tasks: previousTasks,
         columns: previousColumns,
       );
+    }
+  }
+
+  /// When a task is archived, check if all tasks linked to its documents
+  /// are also archived. If so, archive the document too.
+  Future<void> _autoArchiveLinkedDocuments(String taskId) async {
+    try {
+      final taskDetail = await _api.getEntity(taskId);
+      final docRels = taskDetail.relationships.where(
+        (r) => r.relTypeKey == 'contains_doc' && r.relatedEntity.type == 'document',
+      );
+
+      for (final docRel in docRels) {
+        final docId = docRel.relatedEntity.id;
+        final linkedTasks = await _api.listEntities(
+          type: 'task',
+          relatedTo: docId,
+          relType: 'contains_doc',
+          perPage: 200,
+        );
+        final allArchived = linkedTasks.entities.every(
+          (t) => t.metadata['status'] == 'archived',
+        );
+        if (allArchived) {
+          final docDetail = await _api.getEntity(docId);
+          await _api.updateEntity(docId, metadata: {
+            ...docDetail.entity.metadata,
+            'status': 'archived',
+          });
+        }
+      }
+    } catch (_) {
+      // Best-effort — don't break the UI if auto-archive fails
     }
   }
 

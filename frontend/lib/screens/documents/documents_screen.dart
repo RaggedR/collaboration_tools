@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/document_list_state.dart';
 import '../../state/providers.dart';
+import '../../state/sidebar_state.dart';
 import '../../widgets/shared/doc_type_badge.dart';
 import '../../widgets/shared/entity_card.dart';
 import '../../widgets/shared/filter_bar.dart';
@@ -44,6 +45,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
     final permissions = ref.watch(permissionProvider);
     final canCreate = permissions?.canCreate('document') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
+
+    // Consume pending document selection (from cross-screen navigation).
+    final pendingDocId = ref.watch(pendingDocumentSelectionProvider);
+    if (pendingDocId != null) {
+      ref.read(pendingDocumentSelectionProvider.notifier).state = null;
+      Future.microtask(() => setState(() => _selectedDocId = pendingDocId));
+    }
 
     return Column(
       children: [

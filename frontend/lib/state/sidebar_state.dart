@@ -207,3 +207,8 @@ final sidebarProvider =
   }
   return notifier;
 });
+
+/// Pending entity selection — set before navigating to another screen,
+/// consumed on arrival so the target screen opens the detail panel.
+final pendingDocumentSelectionProvider = StateProvider<String?>((ref) => null);
+final pendingTaskSelectionProvider = StateProvider<String?>((ref) => null);

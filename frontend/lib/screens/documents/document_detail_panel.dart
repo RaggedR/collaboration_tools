@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../api/api_client.dart';
 import '../../api/models/entity.dart';
 import '../../api/models/schema.dart';
 import '../../state/entity_detail_state.dart';
 import '../../state/providers.dart';
+import '../../state/sidebar_state.dart';
 import '../../widgets/shared/confirm_dialog.dart';
 import '../../widgets/shared/doc_type_badge.dart';
 import '../../widgets/shared/error_snackbar.dart';
@@ -84,6 +86,8 @@ class DocumentDetailPanel extends ConsumerWidget {
               RelationshipList(
                 relationships: rels,
                 readOnly: !canEdit,
+                onEntityTap: (entity) =>
+                    _navigateToEntity(context, ref, entity),
               ),
 
               // Actions
@@ -230,6 +234,26 @@ class DocumentDetailPanel extends ConsumerWidget {
       },
     );
     bodyController.dispose();
+  }
+
+  void _navigateToEntity(
+      BuildContext context, WidgetRef ref, RelatedEntity entity) {
+    switch (entity.type) {
+      case 'person':
+        GoRouter.of(context).go('/person/${entity.id}');
+      case 'task':
+        ref.read(pendingTaskSelectionProvider.notifier).state = entity.id;
+        GoRouter.of(context).go('/tasks');
+      case 'sprint':
+        GoRouter.of(context).go('/sprints');
+      case 'document':
+        ref.read(pendingDocumentSelectionProvider.notifier).state = entity.id;
+        GoRouter.of(context).go('/documents');
+      case 'project':
+        GoRouter.of(context).go('/tasks');
+      default:
+        GoRouter.of(context).go('/my-page');
+    }
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {

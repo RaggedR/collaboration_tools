@@ -54,6 +54,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       },
     );
 
+    // Consume pending task selection (from cross-screen navigation).
+    final pendingTaskId = ref.watch(pendingTaskSelectionProvider);
+    if (pendingTaskId != null) {
+      ref.read(pendingTaskSelectionProvider.notifier).state = null;
+      Future.microtask(() => setState(() => _selectedTaskId = pendingTaskId));
+    }
+
     // Get task entity type from schema
     final schemaAsync = ref.watch(schemaProvider);
     final taskType = schemaAsync.valueOrNull?.entityTypes

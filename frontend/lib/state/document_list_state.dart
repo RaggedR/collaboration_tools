@@ -7,9 +7,10 @@ import 'providers.dart';
 class DocumentFilters {
   final String? docType;
   final String? search;
+  final String? projectId;
   final int page;
 
-  const DocumentFilters({this.docType, this.search, this.page = 1});
+  const DocumentFilters({this.docType, this.search, this.projectId, this.page = 1});
 
   @override
   bool operator ==(Object other) =>
@@ -17,10 +18,11 @@ class DocumentFilters {
       other is DocumentFilters &&
           docType == other.docType &&
           search == other.search &&
+          projectId == other.projectId &&
           page == other.page;
 
   @override
-  int get hashCode => Object.hash(docType, search, page);
+  int get hashCode => Object.hash(docType, search, projectId, page);
 }
 
 class DocumentListNotifier extends StateNotifier<AsyncValue<PaginatedEntities>> {
@@ -35,6 +37,7 @@ class DocumentListNotifier extends StateNotifier<AsyncValue<PaginatedEntities>> 
     try {
       final result = await _api.listDocuments(
         docType: filters.docType,
+        projectId: filters.projectId,
         page: filters.page,
       );
       // Client-side search filtering (backend search applies to all entities).

@@ -6,6 +6,7 @@ import '../../api/models/entity.dart';
 import '../../api/models/schema.dart';
 import '../../state/entity_detail_state.dart';
 import '../../state/providers.dart';
+import '../../state/sidebar_state.dart';
 import '../../widgets/shared/confirm_dialog.dart';
 import '../../widgets/shared/error_snackbar.dart';
 import '../../widgets/shared/metadata_form.dart';
@@ -137,8 +138,25 @@ class SprintDetailPanel extends ConsumerWidget {
                   children: [
                     const Icon(Icons.star, size: 16, color: Color(0xFFF59E0B)),
                     const SizedBox(width: 4),
-                    Text('Owner: ${ownerRels.first.relatedEntity.name}',
-                        style: Theme.of(context).textTheme.bodyMedium),
+                    const Text('Owner: '),
+                    InkWell(
+                      onTap: () => _navigateToEntity(
+                          context, ref, ownerRels.first.relatedEntity),
+                      child: Text(
+                        ownerRels.first.relatedEntity.name,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.arrow_forward,
+                        size: 12,
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.5)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -160,7 +178,11 @@ class SprintDetailPanel extends ConsumerWidget {
                       rel.metadata['reflection'] as String?;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
-                    child: Padding(
+                    child: InkWell(
+                      onTap: () => _navigateToEntity(
+                          context, ref, rel.relatedEntity),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -179,8 +201,16 @@ class SprintDetailPanel extends ConsumerWidget {
                                 child: Text(name,
                                     style: Theme.of(context)
                                         .textTheme
-                                        .titleSmall),
+                                        .titleSmall?.copyWith(
+                                          color: Theme.of(context).colorScheme.primary,
+                                        )),
                               ),
+                              Icon(Icons.arrow_forward,
+                                  size: 14,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary
+                                      .withValues(alpha: 0.5)),
                             ],
                           ),
                           if (participantGoal != null &&
@@ -204,6 +234,7 @@ class SprintDetailPanel extends ConsumerWidget {
                           ],
                         ],
                       ),
+                    ),
                     ),
                   );
                 }),
@@ -240,11 +271,22 @@ class SprintDetailPanel extends ConsumerWidget {
               else
                 ...taskRels.map((rel) => ListTile(
                       dense: true,
-                      leading: const Icon(
-                          Icons.check_circle_outline, size: 20),
-                      title: Text(rel.relatedEntity.name),
-                      trailing: const Icon(Icons.chevron_right, size: 18),
-                      onTap: () => context.go('/tasks'),
+                      leading: Icon(
+                          Icons.check_circle_outline,
+                          size: 20,
+                          color: const Color(0xFF10B981).withValues(alpha: 0.7)),
+                      title: Text(rel.relatedEntity.name,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
+                            fontWeight: FontWeight.w500,
+                          )),
+                      trailing: Icon(Icons.arrow_forward,
+                          size: 14,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .primary
+                              .withValues(alpha: 0.5)),
+                      onTap: () => _navigateToEntity(context, ref, rel.relatedEntity),
                     )),
 
               // Other relationships
@@ -252,6 +294,8 @@ class SprintDetailPanel extends ConsumerWidget {
                 RelationshipList(
                   relationships: otherRels,
                   readOnly: !canEdit,
+                  onEntityTap: (entity) =>
+                      _navigateToEntity(context, ref, entity),
                 ),
 
               // Sprint Retro
@@ -362,6 +406,26 @@ class SprintDetailPanel extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  void _navigateToEntity(
+      BuildContext context, WidgetRef ref, RelatedEntity entity) {
+    switch (entity.type) {
+      case 'person':
+        GoRouter.of(context).go('/person/${entity.id}');
+      case 'task':
+        ref.read(pendingTaskSelectionProvider.notifier).state = entity.id;
+        GoRouter.of(context).go('/tasks');
+      case 'sprint':
+        GoRouter.of(context).go('/sprints');
+      case 'document':
+        ref.read(pendingDocumentSelectionProvider.notifier).state = entity.id;
+        GoRouter.of(context).go('/documents');
+      case 'project':
+        GoRouter.of(context).go('/tasks');
+      default:
+        GoRouter.of(context).go('/my-page');
+    }
   }
 
   Color? _statusColor(String status) {
