@@ -286,7 +286,7 @@ class SprintDetailPanel extends ConsumerWidget {
                               .colorScheme
                               .primary
                               .withValues(alpha: 0.5)),
-                      onTap: () => context.go('/tasks'),
+                      onTap: () => _navigateToEntity(context, ref, rel.relatedEntity),
                     )),
 
               // Other relationships
