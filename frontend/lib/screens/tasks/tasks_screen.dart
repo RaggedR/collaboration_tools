@@ -51,13 +51,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       Future.microtask(() => _applyFilters());
     }
 
-    // Consume pending task selection (from cross-screen navigation)
-    final pendingTaskId = ref.read(pendingTaskSelectionProvider);
+    // Consume pending task selection (from cross-screen navigation).
+    // Use ref.watch so we react to changes, and clear synchronously
+    // to prevent duplicate consumption on rapid rebuilds.
+    final pendingTaskId = ref.watch(pendingTaskSelectionProvider);
     if (pendingTaskId != null) {
-      Future.microtask(() {
-        ref.read(pendingTaskSelectionProvider.notifier).state = null;
-        setState(() => _selectedTaskId = pendingTaskId);
-      });
+      ref.read(pendingTaskSelectionProvider.notifier).state = null;
+      Future.microtask(() => setState(() => _selectedTaskId = pendingTaskId));
     }
 
     // Get task entity type from schema

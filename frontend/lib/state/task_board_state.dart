@@ -135,17 +135,12 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
 
   /// Optimistic move with rollback on failure.
   ///
-  /// Looks up the task's current status from state (since KanbanBoard.onDrop
-  /// passes '' for fromStatus — see kanban_board.dart line 62).
+  /// Looks up the task's current status from state rather than trusting
+  /// the caller's fromStatus, since TasksScreen discards it.
   Future<void> moveTask(String taskId, String toStatus) async {
-    print('[moveTask] called: taskId=$taskId toStatus=$toStatus');
     final task = state.tasks.firstWhere((t) => t.id == taskId);
     final fromStatus = task.metadata['status'] as String? ?? 'backlog';
-    print('[moveTask] ${task.name}: $fromStatus -> $toStatus');
-    if (fromStatus == toStatus) {
-      print('[moveTask] same status, skipping');
-      return;
-    }
+    if (fromStatus == toStatus) return;
 
     // Optimistic update.
     final previousTasks = state.tasks;
@@ -168,22 +163,19 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
       tasks: updatedTasks,
       columns: groupTasksByStatus(updatedTasks, statusOrder),
     );
-    print('[moveTask] optimistic update applied');
 
     try {
-      final result = await _api.updateEntity(taskId, metadata: {
+      await _api.updateEntity(taskId, metadata: {
         ...task.metadata,
         'status': toStatus,
       });
-      print('[moveTask] API success: new status=${result.metadata['status']}');
 
       // Auto-archive linked documents when task moves to "archived"
       if (toStatus == 'archived') {
         _autoArchiveLinkedDocuments(taskId);
       }
-    } catch (e) {
+    } catch (_) {
       // Rollback on API failure.
-      print('[moveTask] API FAILED: $e');
       state = state.copyWith(
         tasks: previousTasks,
         columns: previousColumns,
@@ -202,7 +194,6 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
 
       for (final docRel in docRels) {
         final docId = docRel.relatedEntity.id;
-        // Find all tasks linked to this document
         final linkedTasks = await _api.listEntities(
           type: 'task',
           relatedTo: docId,
@@ -218,12 +209,10 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
             ...docDetail.entity.metadata,
             'status': 'archived',
           });
-          print('[autoArchive] Archived document: ${docRel.relatedEntity.name}');
         }
       }
-    } catch (e) {
+    } catch (_) {
       // Best-effort — don't break the UI if auto-archive fails
-      print('[autoArchive] Error: $e');
     }
   }
 

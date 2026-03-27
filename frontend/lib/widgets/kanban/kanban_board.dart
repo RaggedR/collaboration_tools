@@ -218,7 +218,9 @@ class _KanbanBoardState extends State<KanbanBoard> {
           scrollDirection: Axis.horizontal,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: widget.columnOrder.map((status) {
+            children: widget.columnOrder
+                .where((s) => !widget.collapsedColumns.contains(s))
+                .map((status) {
               final tasks = _localColumns[status] ?? [];
               final color = widget.columnColors[status];
               final label = widget.columnLabels[status] ?? status;

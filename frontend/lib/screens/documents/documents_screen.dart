@@ -61,13 +61,13 @@ class _DocumentsScreenState extends ConsumerState<DocumentsScreen> {
       });
     }
 
-    // Consume pending document selection (from cross-screen navigation)
-    final pendingDocId = ref.read(pendingDocumentSelectionProvider);
+    // Consume pending document selection (from cross-screen navigation).
+    // Use ref.watch so we react to changes, and clear synchronously
+    // to prevent duplicate consumption on rapid rebuilds.
+    final pendingDocId = ref.watch(pendingDocumentSelectionProvider);
     if (pendingDocId != null) {
-      Future.microtask(() {
-        ref.read(pendingDocumentSelectionProvider.notifier).state = null;
-        setState(() => _selectedDocId = pendingDocId);
-      });
+      ref.read(pendingDocumentSelectionProvider.notifier).state = null;
+      Future.microtask(() => setState(() => _selectedDocId = pendingDocId));
     }
 
     // Scope label
