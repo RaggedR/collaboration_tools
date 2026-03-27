@@ -6,9 +6,10 @@ import '../shared/priority_badge.dart';
 
 /// Kanban board using drag_and_drop_lists package.
 ///
-/// Each status column is a DragAndDropList (horizontal axis).
-/// Cards are DragAndDropItems that can be moved between columns.
-class KanbanBoard extends StatelessWidget {
+/// Manages its own local copy of task lists so the package's internal
+/// drag state doesn't conflict with external rebuilds. Syncs back to
+/// the parent via onStatusChange for API persistence.
+class KanbanBoard extends StatefulWidget {
   final Map<String, List<Entity>> columns;
   final List<String> columnOrder;
   final Map<String, String> columnLabels;
@@ -34,14 +35,58 @@ class KanbanBoard extends StatelessWidget {
   });
 
   @override
+  State<KanbanBoard> createState() => _KanbanBoardState();
+}
+
+class _KanbanBoardState extends State<KanbanBoard> {
+  // Local mutable copy of task lists — package mutates these on drag
+  late Map<String, List<Entity>> _localColumns;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncFromWidget();
+  }
+
+  @override
+  void didUpdateWidget(KanbanBoard old) {
+    super.didUpdateWidget(old);
+    // Only sync from parent if the data actually changed externally
+    // (not as a result of our own drag operation)
+    if (!_sameColumns(widget.columns, old.columns)) {
+      _syncFromWidget();
+    }
+  }
+
+  void _syncFromWidget() {
+    _localColumns = {
+      for (final status in widget.columnOrder)
+        status: List<Entity>.from(widget.columns[status] ?? []),
+    };
+  }
+
+  bool _sameColumns(
+      Map<String, List<Entity>> a, Map<String, List<Entity>> b) {
+    for (final key in a.keys) {
+      final aList = a[key] ?? [];
+      final bList = b[key] ?? [];
+      if (aList.length != bList.length) return false;
+      for (var i = 0; i < aList.length; i++) {
+        if (aList[i].id != bList[i].id) return false;
+      }
+    }
+    return true;
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return DragAndDropLists(
-      children: columnOrder.map((status) {
-        final tasks = columns[status] ?? [];
-        final color = columnColors[status];
-        final label = columnLabels[status] ?? status;
+      children: widget.columnOrder.map((status) {
+        final tasks = _localColumns[status] ?? [];
+        final color = widget.columnColors[status];
+        final label = widget.columnLabels[status] ?? status;
 
         return DragAndDropList(
           header: Container(
@@ -79,23 +124,35 @@ class KanbanBoard extends StatelessWidget {
           children: tasks.map((task) {
             return DragAndDropItem(
               child: GestureDetector(
-                onTap: onTaskTap != null ? () => onTaskTap!(task) : null,
+                onTap: widget.onTaskTap != null
+                    ? () => widget.onTaskTap!(task)
+                    : null,
                 child: Card(
-                  margin:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                  margin: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 3),
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          task.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(fontWeight: FontWeight.w600),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                task.name,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.copyWith(
+                                        fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            if (!widget.readOnly)
+                              _buildMoveMenu(
+                                  context, task, status),
+                          ],
                         ),
                         const SizedBox(height: 6),
                         _buildCardFields(context, task),
@@ -106,27 +163,39 @@ class KanbanBoard extends StatelessWidget {
               ),
             );
           }).toList(),
-          canDrag: !readOnly,
+          canDrag: !widget.readOnly,
         );
       }).toList(),
-      onItemReorder: (oldItemIndex, oldListIndex, newItemIndex, newListIndex) {
-        if (oldListIndex == newListIndex) return; // same column, ignore
-        final fromStatus = columnOrder[oldListIndex];
-        final toStatus = columnOrder[newListIndex];
-        final tasks = columns[fromStatus];
-        if (tasks != null && oldItemIndex < tasks.length) {
-          final task = tasks[oldItemIndex];
-          onStatusChange?.call(task.id, fromStatus, toStatus);
+      onItemReorder:
+          (oldItemIndex, oldListIndex, newItemIndex, newListIndex) {
+        final fromStatus = widget.columnOrder[oldListIndex];
+        final toStatus = widget.columnOrder[newListIndex];
+        print('[KANBAN DROP] $fromStatus[$oldItemIndex] -> $toStatus[$newItemIndex]');
+
+        setState(() {
+          final movedTask =
+              _localColumns[fromStatus]!.removeAt(oldItemIndex);
+          _localColumns[toStatus]!.insert(newItemIndex, movedTask);
+          print('[KANBAN DROP] moved "${movedTask.name}" — ${fromStatus}(${_localColumns[fromStatus]!.length}) ${toStatus}(${_localColumns[toStatus]!.length})');
+        });
+
+        // Fire API call (don't await — local state is already updated)
+        if (fromStatus != toStatus) {
+          final task = _localColumns[toStatus]![newItemIndex];
+          widget.onStatusChange?.call(task.id, fromStatus, toStatus);
         }
       },
-      onListReorder: (a, b) {}, // don't allow column reordering
+      onListReorder: (a, b) {},
       axis: Axis.horizontal,
       listWidth: 280,
       listDraggingWidth: 280,
-      listPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      listDragOnLongPress: true, // columns can't be reordered by short press
+      listPadding:
+          const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+      listDragOnLongPress: true,
       listDecoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+        color: isDark
+            ? const Color(0xFF1E293B)
+            : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isDark ? Colors.white10 : const Color(0xFFE2E8F0),
@@ -146,13 +215,62 @@ class KanbanBoard extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Text('Drop here',
             style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                color:
+                    Theme.of(context).colorScheme.onSurfaceVariant)),
       ),
     );
   }
 
+  Widget _buildMoveMenu(
+      BuildContext context, Entity task, String currentStatus) {
+    final otherStatuses = widget.columnOrder
+        .where((s) => s != currentStatus)
+        .toList();
+
+    return PopupMenuButton<String>(
+      icon: Icon(Icons.arrow_forward,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurfaceVariant),
+      tooltip: 'Move to...',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+      itemBuilder: (context) => otherStatuses.map((status) {
+        final label = widget.columnLabels[status] ?? status;
+        final color = widget.columnColors[status];
+        return PopupMenuItem<String>(
+          value: status,
+          child: Row(
+            children: [
+              if (color != null) ...[
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                      color: color, shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Text(label),
+            ],
+          ),
+        );
+      }).toList(),
+      onSelected: (toStatus) {
+        setState(() {
+          final fromList = _localColumns[currentStatus]!;
+          final idx = fromList.indexWhere((t) => t.id == task.id);
+          if (idx >= 0) {
+            final moved = fromList.removeAt(idx);
+            _localColumns[toStatus]!.add(moved);
+          }
+        });
+        widget.onStatusChange?.call(task.id, currentStatus, toStatus);
+      },
+    );
+  }
+
   Widget _buildCardFields(BuildContext context, Entity task) {
-    final fields = uiSchema?.cardFields;
+    final fields = widget.uiSchema?.cardFields;
     if (fields == null || fields.isEmpty) {
       return Row(
         children: [
@@ -174,7 +292,7 @@ class KanbanBoard extends StatelessWidget {
       if (field == 'priority') {
         widgets.add(PriorityBadge(
           priority: value as String,
-          colorOverrides: uiSchema?.colorsFor(field) ?? {},
+          colorOverrides: widget.uiSchema?.colorsFor(field) ?? {},
         ));
       } else {
         widgets.add(Text('$value',
