@@ -222,6 +222,7 @@ class ApiClient {
     String? docType,
     String? authorId,
     String? taskId,
+    String? projectId,
     int page = 1,
     int perPage = 50,
   }) {
@@ -230,11 +231,13 @@ class ApiClient {
     return listEntities(
       type: 'document',
       metadata: metadata,
-      relatedTo: authorId ?? taskId,
+      relatedTo: authorId ?? taskId ?? projectId,
       relType: authorId != null
           ? 'authored'
           : taskId != null
               ? 'contains_doc'
+              : projectId != null
+                  ? 'contains_doc'
               : null,
       page: page,
       perPage: perPage,

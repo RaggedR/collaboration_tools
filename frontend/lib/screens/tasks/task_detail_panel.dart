@@ -83,10 +83,12 @@ class TaskDetailPanel extends ConsumerWidget {
                       visualDensity: VisualDensity.compact,
                       onPressed: () {
                         // Filter tasks by this label
+                        final projectId =
+                            ref.read(sidebarProvider).selectedProjectId;
                         ref.read(taskBoardProvider.notifier).loadTasks(
                               TaskFilters(
-                                projectId: ref.read(selectedProjectProvider),
-                                labels: [label],
+                                projectId: projectId,
+                                metadata: {'labels': [label]},
                               ),
                             );
                       },
