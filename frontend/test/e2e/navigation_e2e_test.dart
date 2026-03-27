@@ -10,8 +10,7 @@ void main() {
       // 3. Tap Tasks nav item → verify Tasks screen
       // 4. Tap Sprints nav item → verify Sprints screen
       // 5. Tap Documents nav item → verify Documents screen
-      // 6. Tap Graph nav item → verify Graph screen
-      // 7. Tap My Page nav item → verify back on My Page
+      // 6. Tap My Page nav item → verify back on My Page
     }, skip: true);
 
     testWidgets('tapping person chip navigates to their My Page',

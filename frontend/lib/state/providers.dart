@@ -7,7 +7,11 @@ import 'schema_state.dart';
 import 'token_store_impl.dart';
 
 /// Base URL for the backend API.
-const _defaultBaseUrl = 'http://localhost:8080';
+/// Set via --dart-define=API_BASE_URL=https://... at build time.
+const _defaultBaseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'http://localhost:8080',
+);
 
 /// Token store backed by platform secure storage.
 final tokenStoreProvider = Provider<TokenStore>((ref) {

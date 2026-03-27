@@ -174,22 +174,13 @@ class ApiClient {
   // --- Convenience methods ---
 
   Future<PaginatedEntities> listTasks({
-    String? status,
-    String? priority,
-    List<String>? labels,
+    Map<String, dynamic>? metadata,
     String? assigneeId,
     String? sprintId,
     String? projectId,
     int page = 1,
     int perPage = 50,
   }) {
-    Map<String, dynamic>? metadata;
-    if (status != null || priority != null || labels != null) {
-      metadata = {};
-      if (status != null) metadata['status'] = status;
-      if (priority != null) metadata['priority'] = priority;
-      if (labels != null) metadata['labels'] = labels;
-    }
     return listEntities(
       type: 'task',
       metadata: metadata,
@@ -230,7 +221,7 @@ class ApiClient {
   Future<PaginatedEntities> listDocuments({
     String? docType,
     String? authorId,
-    String? projectId,
+    String? taskId,
     int page = 1,
     int perPage = 50,
   }) {
@@ -239,10 +230,10 @@ class ApiClient {
     return listEntities(
       type: 'document',
       metadata: metadata,
-      relatedTo: authorId ?? projectId,
+      relatedTo: authorId ?? taskId,
       relType: authorId != null
           ? 'authored'
-          : projectId != null
+          : taskId != null
               ? 'contains_doc'
               : null,
       page: page,

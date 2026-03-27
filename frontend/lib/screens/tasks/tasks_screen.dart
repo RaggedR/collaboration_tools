@@ -10,12 +10,10 @@ import '../../widgets/shared/status_badge.dart';
 import 'task_create_form.dart';
 import 'task_detail_panel.dart';
 
-/// Global kanban board + filter bar. Split-pane detail panel on desktop.
+/// Global kanban board + filter bar. Split-pane on desktop.
 ///
 /// Column order, labels, colors, card fields, and filter options are all
 /// derived from the task entity type's ui_schema + metadata_schema.
-/// Project scoping: when a project is selected in the sidebar, only
-/// that project's tasks are shown.
 class TasksScreen extends ConsumerStatefulWidget {
   const TasksScreen({super.key});
 
@@ -24,10 +22,11 @@ class TasksScreen extends ConsumerStatefulWidget {
 }
 
 class _TasksScreenState extends ConsumerState<TasksScreen> {
+  /// Active filter values keyed by field name (e.g., {"priority": "high"}).
   final _filterValues = <String, String?>{};
   String? _selectedTaskId;
-  String? _lastProjectId;
 
+  /// Hardcoded fallback — used only when schema hasn't loaded yet.
   static const _fallbackStatusLabels = {
     'backlog': 'Backlog',
     'todo': 'To Do',
@@ -43,17 +42,19 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final permissions = ref.watch(permissionProvider);
     final canCreate = permissions?.canCreate('task') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
-    final selectedProjectId = ref.watch(selectedProjectProvider);
+    final selectedProjectName = ref.watch(
+      sidebarProvider.select((s) => s.selectedProjectName),
+    );
 
-    // Reload when project scope changes
-    if (selectedProjectId != _lastProjectId) {
-      _lastProjectId = selectedProjectId;
-      Future.microtask(() => _applyFilters());
-    }
+    // Reload tasks when project scope changes.
+    ref.listen<String?>(
+      sidebarProvider.select((s) => s.selectedProjectId),
+      (prev, next) {
+        if (prev != next) _applyFilters();
+      },
+    );
 
     // Consume pending task selection (from cross-screen navigation).
-    // Use ref.watch so we react to changes, and clear synchronously
-    // to prevent duplicate consumption on rapid rebuilds.
     final pendingTaskId = ref.watch(pendingTaskSelectionProvider);
     if (pendingTaskId != null) {
       ref.read(pendingTaskSelectionProvider.notifier).state = null;
@@ -72,50 +73,41 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     final statusLabels = _deriveStatusLabels(taskType);
     final columnColors = _deriveColumnColors(ui);
 
-    // Scope label
-    final sidebarData = ref.watch(sidebarDataProvider).valueOrNull;
-    final scopeLabel = selectedProjectId != null
-        ? sidebarData?.projects
-            .where((p) => p.id == selectedProjectId)
-            .map((p) => p.name)
-            .firstOrNull
-        : null;
-
     return Column(
       children: [
+        // Breadcrumb when project-scoped.
+        if (selectedProjectName != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Row(
+              children: [
+                Text(
+                  selectedProjectName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+                const SizedBox(width: 4),
+                Text(' > ', style: Theme.of(context).textTheme.titleSmall),
+                Text('Tasks', style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
+          ),
         // Toolbar
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Row(
             children: [
-              // Title row with scope breadcrumb
-              Row(
-                children: [
-                  if (scopeLabel != null) ...[
-                    Text(scopeLabel,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                            )),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 6),
-                      child: Icon(Icons.chevron_right,
-                          size: 14, color: Color(0xFF94A3B8)),
-                    ),
-                  ],
-                  Text('Tasks',
-                      style: Theme.of(context).textTheme.headlineMedium),
-                  const Spacer(),
-                  if (canCreate)
-                    FilledButton.icon(
-                      onPressed: () => _createTask(context),
-                      icon: const Icon(Icons.add, size: 18),
-                      label: const Text('New Task'),
-                    ),
-                ],
+              Expanded(
+                child: _buildFilters(taskType),
               ),
-              const SizedBox(height: 8),
-              _buildFilters(taskType),
+              if (canCreate)
+                FilledButton.icon(
+                  onPressed: () => _createTask(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('New Task'),
+                ),
             ],
           ),
         ),
@@ -137,10 +129,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                             ui,
                           ),
                         ),
-                        VerticalDivider(
-                          width: 1,
-                          color: Theme.of(context).dividerColor,
-                        ),
+                        const VerticalDivider(width: 1),
                         Expanded(
                           flex: 2,
                           child: TaskDetailPanel(
@@ -149,7 +138,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
                                 setState(() => _selectedTaskId = null),
                             onDeleted: () {
                               setState(() => _selectedTaskId = null);
-                              _applyFilters();
+                              ref.read(taskBoardProvider.notifier).loadTasks();
                             },
                           ),
                         ),
@@ -167,43 +156,58 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     );
   }
 
+  /// Derives column order from the task status enum in metadata_schema.
   List<String> _deriveStatusOrder(EntityType? taskType) {
     if (taskType == null) return defaultStatusOrder;
+
+    // Find the kanban column field from ui_schema
     final kanbanField = taskType.uiSchema.kanbanColumnField ?? 'status';
+
+    // Get enum values from metadata_schema
     final props =
         taskType.metadataSchema['properties'] as Map<String, dynamic>?;
     final fieldSchema = props?[kanbanField] as Map<String, dynamic>?;
     final enumValues = fieldSchema?['enum'] as List?;
+
     if (enumValues != null) return enumValues.cast<String>();
     return defaultStatusOrder;
   }
 
+  /// Derives column labels from the ui_schema label or humanized enum values.
   Map<String, String> _deriveStatusLabels(EntityType? taskType) {
     if (taskType == null) return _fallbackStatusLabels;
+
     final kanbanField = taskType.uiSchema.kanbanColumnField ?? 'status';
     final props =
         taskType.metadataSchema['properties'] as Map<String, dynamic>?;
     final fieldSchema = props?[kanbanField] as Map<String, dynamic>?;
     final enumValues = fieldSchema?['enum'] as List?;
+
     if (enumValues == null) return _fallbackStatusLabels;
+
     return {
       for (final v in enumValues.cast<String>()) v: _humanize(v),
     };
   }
 
+  /// Derives column header colors from ui_schema.
   Map<String, Color> _deriveColumnColors(UiSchema? ui) {
     if (ui == null) return {};
+
     final kanbanField = ui.kanbanColumnField ?? 'status';
     final colorMap = ui.colorsFor(kanbanField);
+
     return {
       for (final entry in colorMap.entries)
         entry.key: StatusBadge.parseHex(entry.value),
     };
   }
 
+  /// Builds schema-driven filter bar.
   Widget _buildFilters(EntityType? taskType) {
     final ui = taskType?.uiSchema;
     final filterFields = ui?.filters ?? ['priority'];
+
     final metaProps =
         taskType?.metadataSchema['properties'] as Map<String, dynamic>? ?? {};
 
@@ -211,8 +215,10 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
     for (final field in filterFields) {
       final fieldSchema = metaProps[field] as Map<String, dynamic>?;
       if (fieldSchema == null) continue;
+
       final enumValues = fieldSchema['enum'] as List?;
-      if (enumValues == null) continue;
+      if (enumValues == null) continue; // Only enum fields become filters
+
       final label = ui?.labelFor(field) ?? _humanize(field);
       filters.add(FilterOption(
         label: label,
@@ -238,15 +244,13 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
   }
 
   void _applyFilters() {
-    final projectId = ref.read(selectedProjectProvider);
-    final labelsRaw = _filterValues['labels'];
+    final metadata = <String, dynamic>{};
+    for (final entry in _filterValues.entries) {
+      if (entry.value != null) metadata[entry.key] = entry.value;
+    }
+    final projectId = ref.read(sidebarProvider).selectedProjectId;
     ref.read(taskBoardProvider.notifier).loadTasks(
-          TaskFilters(
-            projectId: projectId,
-            priority: _filterValues['priority'],
-            status: _filterValues['status'],
-            labels: labelsRaw != null ? [labelsRaw] : null,
-          ),
+          TaskFilters(projectId: projectId, metadata: metadata),
         );
   }
 
@@ -276,7 +280,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
       builder: (context) => const TaskCreateForm(),
     );
     if (created == true) {
-      _applyFilters();
+      ref.read(taskBoardProvider.notifier).loadTasks();
     }
   }
 

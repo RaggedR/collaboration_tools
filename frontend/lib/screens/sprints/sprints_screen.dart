@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../api/models/entity.dart';
-import '../../state/entity_detail_state.dart';
 import '../../state/providers.dart';
 import '../../state/sidebar_state.dart';
 import '../../state/sprint_list_state.dart';
@@ -10,8 +9,9 @@ import 'sprint_detail_panel.dart';
 
 /// Sprint list grouped by temporal status.
 ///
-/// Each sprint expands to show one card per participant with their
-/// personal goal and reflection. Collapsible sections with chevron toggles.
+/// Visual design stolen from Accountability Tracker: collapsible user-card
+/// pattern with colored headers, chevron toggles, and progressive disclosure.
+/// Sprint cards show status indicator, name, date range, goal, and progress.
 class SprintsScreen extends ConsumerStatefulWidget {
   const SprintsScreen({super.key});
 
@@ -22,7 +22,6 @@ class SprintsScreen extends ConsumerStatefulWidget {
 class _SprintsScreenState extends ConsumerState<SprintsScreen> {
   String? _selectedSprintId;
   final _collapsedSections = <String>{};
-  String? _lastProjectId;
 
   @override
   Widget build(BuildContext context) {
@@ -30,41 +29,36 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
     final permissions = ref.watch(permissionProvider);
     final canCreate = permissions?.canCreate('sprint') ?? false;
     final isWide = MediaQuery.sizeOf(context).width > 900;
-    final selectedProjectId = ref.watch(selectedProjectProvider);
+    final selectedProjectName = ref.watch(
+      sidebarProvider.select((s) => s.selectedProjectName),
+    );
 
-    // Reload when project scope changes
-    if (selectedProjectId != _lastProjectId) {
-      _lastProjectId = selectedProjectId;
-      Future.microtask(
-          () => ref.read(sprintListProvider.notifier).load(projectId: selectedProjectId));
-    }
-
-    // Scope label
-    final sidebarData = ref.watch(sidebarDataProvider).valueOrNull;
-    final scopeLabel = selectedProjectId != null
-        ? sidebarData?.projects
-            .where((p) => p.id == selectedProjectId)
-            .map((p) => p.name)
-            .firstOrNull
-        : null;
+    // Reload sprints when project scope changes.
+    ref.listen<String?>(
+      sidebarProvider.select((s) => s.selectedProjectId),
+      (prev, next) {
+        if (prev != next) {
+          ref.read(sprintListProvider.notifier).load(projectId: next);
+        }
+      },
+    );
 
     return Column(
       children: [
         // Toolbar
         Padding(
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 4),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
           child: Row(
             children: [
-              if (scopeLabel != null) ...[
-                Text(scopeLabel,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.primary,
-                        )),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 6),
-                  child: Icon(Icons.chevron_right,
-                      size: 14, color: Color(0xFF94A3B8)),
+              if (selectedProjectName != null) ...[
+                Text(
+                  selectedProjectName,
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
+                Text(' > ', style: Theme.of(context).textTheme.titleSmall),
               ],
               Text('Sprints',
                   style: Theme.of(context).textTheme.headlineMedium),
@@ -89,10 +83,7 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
                 return Row(
                   children: [
                     Expanded(flex: 3, child: list),
-                    VerticalDivider(
-                      width: 1,
-                      color: Theme.of(context).dividerColor,
-                    ),
+                    const VerticalDivider(width: 1),
                     Expanded(
                       flex: 2,
                       child: SprintDetailPanel(
@@ -101,8 +92,7 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
                             setState(() => _selectedSprintId = null),
                         onDeleted: () {
                           setState(() => _selectedSprintId = null);
-                          ref.read(sprintListProvider.notifier).load(
-                              projectId: ref.read(selectedProjectProvider));
+                          ref.invalidate(sprintListProvider);
                         },
                       ),
                     ),
@@ -127,29 +117,25 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('No sprints yet.',
+            Icon(Icons.timer_off, size: 48,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(height: 12),
+            Text('No sprints yet',
                 style: Theme.of(context).textTheme.bodyMedium),
-            const SizedBox(height: 4),
-            Text(
-              'Create your first sprint to get started.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
           ],
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(sprintListProvider.notifier).load(
-          projectId: ref.read(selectedProjectProvider)),
+      onRefresh: () => ref.read(sprintListProvider.notifier).load(),
       child: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         children: [
           if (groups.current.isNotEmpty)
             _buildSection(context, 'CURRENT', groups.current, _currentColor),
           if (groups.upcoming.isNotEmpty)
-            _buildSection(
-                context, 'UPCOMING', groups.upcoming, _upcomingColor),
+            _buildSection(context, 'UPCOMING', groups.upcoming, _upcomingColor),
           if (groups.completed.isNotEmpty)
             _buildSection(
                 context, 'COMPLETED', groups.completed, _completedColor),
@@ -158,10 +144,13 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
     );
   }
 
+  // Accountability-tracker-style section colors
   static const _currentColor = Color(0xFF10B981);
   static const _upcomingColor = Color(0xFF64748B);
   static const _completedColor = Color(0xFF3B82F6);
 
+  /// Builds a collapsible section — like the accountability tracker's
+  /// user-card pattern: colored header with chevron toggle.
   Widget _buildSection(
     BuildContext context,
     String title,
@@ -175,6 +164,7 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Section header — tap to collapse/expand
           InkWell(
             onTap: () => setState(() {
               if (isCollapsed) {
@@ -185,8 +175,7 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
             }),
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: accentColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
@@ -231,18 +220,20 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
               ),
             ),
           ),
+
+          // Sprint cards — hidden when collapsed
           if (!isCollapsed) ...[
             const SizedBox(height: 8),
-            ...sprints.map((sprint) =>
-                _buildSprintWithParticipants(context, sprint, accentColor, title)),
+            ...sprints.map((sprint) => _buildSprintCard(
+                  context, sprint, accentColor, title)),
           ],
         ],
       ),
     );
   }
 
-  /// Sprint card that loads participant data and shows per-user cards.
-  Widget _buildSprintWithParticipants(
+  /// Builds an individual sprint card — accountability-tracker style.
+  Widget _buildSprintCard(
     BuildContext context,
     Entity sprint,
     Color accentColor,
@@ -254,6 +245,7 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
     final goal = sprint.metadata['goal'] as String?;
     final status = sprint.metadata['status'] as String?;
 
+    // Status indicator
     final IconData statusIcon;
     switch (section) {
       case 'CURRENT':
@@ -267,205 +259,88 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Sprint header card
-          InkWell(
-            onTap: () => setState(() => _selectedSprintId = sprint.id),
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: () => setState(() => _selectedSprintId = sprint.id),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardTheme.color ??
+                Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(8),
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardTheme.color ??
-                    Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: isSelected
-                      ? accentColor
-                      : Theme.of(context).dividerColor,
-                  width: isSelected ? 2 : 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(statusIcon, size: 16, color: accentColor),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          sprint.name,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleSmall
-                              ?.copyWith(fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                      if (startDate != null || endDate != null)
-                        Text(
-                          '${startDate ?? '?'} \u2192 ${endDate ?? '?'}',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
-                  ),
-                  if (status != null ||
-                      (goal != null && goal.isNotEmpty)) ...[
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (status != null) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              _humanize(status),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                color: accentColor,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                        ],
-                        if (goal != null && goal.isNotEmpty)
-                          Expanded(
-                            child: Text(
-                              goal,
-                              style: Theme.of(context).textTheme.bodySmall,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
+            border: Border.all(
+              color: isSelected
+                  ? accentColor
+                  : Theme.of(context).dividerColor,
+              width: isSelected ? 2 : 1,
             ),
           ),
-
-          // Participant cards (loaded from entity detail)
-          const SizedBox(height: 4),
-          Consumer(
-            builder: (context, ref, _) {
-              final detailAsync = ref.watch(entityDetailProvider(sprint.id));
-              return detailAsync.when(
-                loading: () => const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: LinearProgressIndicator(),
-                ),
-                error: (e, st) => const SizedBox.shrink(),
-                data: (detail) {
-                  final participants = detail.relationships
-                      .where((r) =>
-                          r.relatedEntity.type == 'person' &&
-                          r.relTypeKey == 'participates_in')
-                      .toList();
-
-                  if (participants.isEmpty) return const SizedBox.shrink();
-
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 24),
-                    child: Column(
-                      children: participants.map((rel) {
-                        final name = rel.relatedEntity.name;
-                        final participantGoal =
-                            rel.metadata['goal'] as String?;
-                        final reflection =
-                            rel.metadata['reflection'] as String?;
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest
-                                  .withValues(alpha: 0.4),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: Theme.of(context)
-                                    .dividerColor
-                                    .withValues(alpha: 0.5),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor:
-                                      accentColor.withValues(alpha: 0.15),
-                                  child: Text(
-                                    name.isNotEmpty ? name[0] : '?',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: accentColor,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        name,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium
-                                            ?.copyWith(
-                                                fontWeight: FontWeight.w600),
-                                      ),
-                                      if (participantGoal != null &&
-                                          participantGoal.isNotEmpty)
-                                        Text(
-                                          participantGoal,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      if (reflection != null &&
-                                          reflection.isNotEmpty)
-                                        Text(
-                                          reflection,
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                  fontStyle:
-                                                      FontStyle.italic),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      }).toList(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Row 1: Status icon + name + date range
+              Row(
+                children: [
+                  Icon(statusIcon, size: 16, color: accentColor),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      sprint.name,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600),
                     ),
-                  );
-                },
-              );
-            },
+                  ),
+                  if (startDate != null || endDate != null)
+                    Text(
+                      '${startDate ?? '?'} \u2192 ${endDate ?? '?'}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
+
+              // Row 2: Status chip + goal
+              if (status != null || (goal != null && goal.isNotEmpty)) ...[
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (status != null) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          _humanize(status),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: accentColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                    ],
+                    if (goal != null && goal.isNotEmpty)
+                      Expanded(
+                        child: Text(
+                          goal,
+                          style: Theme.of(context).textTheme.bodySmall,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -476,8 +351,7 @@ class _SprintsScreenState extends ConsumerState<SprintsScreen> {
       builder: (context) => const SprintCreateForm(),
     );
     if (created == true) {
-      ref.read(sprintListProvider.notifier).load(
-          projectId: ref.read(selectedProjectProvider));
+      ref.invalidate(sprintListProvider);
     }
   }
 

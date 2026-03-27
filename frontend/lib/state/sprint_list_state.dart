@@ -28,7 +28,6 @@ class SprintListNotifier extends StateNotifier<AsyncValue<SprintGroups>> {
     try {
       final PaginatedEntities result;
       if (projectId != null) {
-        // Filter sprints by project via contains_sprint relationship
         result = await _api.listEntities(
           type: 'sprint',
           relatedTo: projectId,

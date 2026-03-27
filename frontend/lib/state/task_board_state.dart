@@ -7,18 +7,17 @@ import 'providers.dart';
 class TaskFilters {
   final String? projectId;
   final String? assigneeId;
-  final String? priority;
-  final String? status;
   final String? sprintId;
-  final List<String>? labels;
+
+  /// Schema-driven metadata filters (e.g. status, priority, labels).
+  /// Keys are metadata field names; values are the selected filter values.
+  final Map<String, dynamic> metadata;
 
   const TaskFilters({
     this.projectId,
     this.assigneeId,
-    this.priority,
-    this.status,
     this.sprintId,
-    this.labels,
+    this.metadata = const {},
   });
 
   @override
@@ -27,21 +26,16 @@ class TaskFilters {
       other is TaskFilters &&
           projectId == other.projectId &&
           assigneeId == other.assigneeId &&
-          priority == other.priority &&
-          status == other.status &&
           sprintId == other.sprintId &&
-          _listEquals(labels, other.labels);
+          _mapEquals(metadata, other.metadata);
 
   @override
-  int get hashCode =>
-      Object.hash(projectId, assigneeId, priority, status, sprintId, labels);
+  int get hashCode => Object.hash(projectId, assigneeId, sprintId, metadata.length);
 
-  static bool _listEquals(List<String>? a, List<String>? b) {
-    if (a == null && b == null) return true;
-    if (a == null || b == null) return false;
+  static bool _mapEquals(Map<String, dynamic> a, Map<String, dynamic> b) {
     if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
+    for (final key in a.keys) {
+      if (a[key] != b[key]) return false;
     }
     return true;
   }
@@ -118,10 +112,8 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
       final result = await _api.listTasks(
         projectId: filters.projectId,
         assigneeId: filters.assigneeId,
-        priority: filters.priority,
-        status: filters.status,
-        labels: filters.labels,
         sprintId: filters.sprintId,
+        metadata: filters.metadata.isNotEmpty ? filters.metadata : null,
         perPage: 200,
       );
       final columns = groupTasksByStatus(result.entities, statusOrder);
@@ -171,12 +163,12 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
         'status': toStatus,
       });
 
-      // Auto-archive linked documents when task moves to "archived"
+      // Auto-archive linked documents when task is archived
       if (toStatus == 'archived') {
         _autoArchiveLinkedDocuments(taskId);
       }
     } catch (_) {
-      // Rollback on API failure.
+      // Rollback.
       state = state.copyWith(
         tasks: previousTasks,
         columns: previousColumns,
