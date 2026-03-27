@@ -8,6 +8,7 @@ class TaskFilters {
   final String? projectId;
   final String? assigneeId;
   final String? priority;
+  final String? status;
   final String? sprintId;
   final List<String>? labels;
 
@@ -15,6 +16,7 @@ class TaskFilters {
     this.projectId,
     this.assigneeId,
     this.priority,
+    this.status,
     this.sprintId,
     this.labels,
   });
@@ -26,10 +28,23 @@ class TaskFilters {
           projectId == other.projectId &&
           assigneeId == other.assigneeId &&
           priority == other.priority &&
-          sprintId == other.sprintId;
+          status == other.status &&
+          sprintId == other.sprintId &&
+          _listEquals(labels, other.labels);
 
   @override
-  int get hashCode => Object.hash(projectId, assigneeId, priority, sprintId);
+  int get hashCode =>
+      Object.hash(projectId, assigneeId, priority, status, sprintId, labels);
+
+  static bool _listEquals(List<String>? a, List<String>? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 }
 
 /// Groups tasks by their status metadata field into kanban columns.
@@ -104,6 +119,7 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
         projectId: filters.projectId,
         assigneeId: filters.assigneeId,
         priority: filters.priority,
+        status: filters.status,
         sprintId: filters.sprintId,
         perPage: 200,
       );
@@ -122,9 +138,14 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
   /// Looks up the task's current status from state (since KanbanBoard.onDrop
   /// passes '' for fromStatus — see kanban_board.dart line 62).
   Future<void> moveTask(String taskId, String toStatus) async {
+    print('[moveTask] called: taskId=$taskId toStatus=$toStatus');
     final task = state.tasks.firstWhere((t) => t.id == taskId);
     final fromStatus = task.metadata['status'] as String? ?? 'backlog';
-    if (fromStatus == toStatus) return;
+    print('[moveTask] ${task.name}: $fromStatus -> $toStatus');
+    if (fromStatus == toStatus) {
+      print('[moveTask] same status, skipping');
+      return;
+    }
 
     // Optimistic update.
     final previousTasks = state.tasks;
@@ -147,14 +168,17 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
       tasks: updatedTasks,
       columns: groupTasksByStatus(updatedTasks, statusOrder),
     );
+    print('[moveTask] optimistic update applied');
 
     try {
-      await _api.updateEntity(taskId, metadata: {
+      final result = await _api.updateEntity(taskId, metadata: {
         ...task.metadata,
         'status': toStatus,
       });
-    } catch (_) {
-      // Rollback.
+      print('[moveTask] API success: new status=${result.metadata['status']}');
+    } catch (e) {
+      // Rollback on API failure.
+      print('[moveTask] API FAILED: $e');
       state = state.copyWith(
         tasks: previousTasks,
         columns: previousColumns,

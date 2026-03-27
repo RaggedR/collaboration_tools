@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../api/api_client.dart';
+import '../../api/models/entity.dart';
+import '../../api/models/schema.dart';
 import '../../state/entity_detail_state.dart';
 import '../../state/providers.dart';
+import '../../state/task_board_state.dart';
+import '../../state/sidebar_state.dart';
 import '../../widgets/shared/confirm_dialog.dart';
 import '../../widgets/shared/error_snackbar.dart';
+import '../../widgets/shared/markdown_viewer.dart';
 import '../../widgets/shared/metadata_form.dart';
 import '../../widgets/shared/relationship_list.dart';
-import '../../widgets/shared/schema_fields_display.dart';
-import '../../api/api_client.dart';
-import '../../api/models/schema.dart';
 
-/// Detail panel for a single task — metadata, relationships, edit/delete.
+/// Detail panel for a single task — description, labels, relationships, edit/delete.
 ///
-/// Metadata fields are grouped by sections from the task entity type's
-/// ui_schema. Falls back to flat status + priority badges when no
-/// ui_schema is available.
+/// Intentionally minimal: shows body text, label chips, and relationships.
+/// Status/priority/planning fields are visible on the kanban board itself.
 class TaskDetailPanel extends ConsumerWidget {
   final String taskId;
   final VoidCallback? onClose;
@@ -31,11 +34,6 @@ class TaskDetailPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final detailAsync = ref.watch(entityDetailProvider(taskId));
     final permissions = ref.watch(permissionProvider);
-    final schemaAsync = ref.watch(schemaProvider);
-    final taskType = schemaAsync.valueOrNull?.entityTypes
-        .cast<EntityType?>()
-        .firstWhere((t) => t?.key == 'task', orElse: () => null);
-
     return Card(
       margin: const EdgeInsets.all(8),
       child: detailAsync.when(
@@ -45,6 +43,7 @@ class TaskDetailPanel extends ConsumerWidget {
           final entity = entityWithRels.entity;
           final rels = entityWithRels.relationships;
           final canEdit = permissions?.canEdit(entity, rels) ?? false;
+          final labels = entity.metadata['labels'] as List? ?? [];
 
           return ListView(
             padding: const EdgeInsets.all(16),
@@ -67,19 +66,41 @@ class TaskDetailPanel extends ConsumerWidget {
               ),
               const SizedBox(height: 12),
 
-              // Schema-driven metadata fields
-              if (taskType != null)
-                SchemaFieldsDisplay(
-                  metadata: entity.metadata,
-                  uiSchema: taskType.uiSchema,
-                  metadataSchema: taskType.metadataSchema,
+              // Body / Description
+              if (entity.body != null && entity.body!.isNotEmpty) ...[
+                MarkdownViewer(data: entity.body!),
+                const SizedBox(height: 16),
+              ],
+
+              // Labels as tappable chips
+              if (labels.isNotEmpty) ...[
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: labels.cast<String>().map((label) {
+                    return ActionChip(
+                      label: Text(label, style: const TextStyle(fontSize: 12)),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () {
+                        // Filter tasks by this label
+                        ref.read(taskBoardProvider.notifier).loadTasks(
+                              TaskFilters(
+                                projectId: ref.read(selectedProjectProvider),
+                                labels: [label],
+                              ),
+                            );
+                      },
+                    );
+                  }).toList(),
                 ),
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
+              ],
 
               // Relationships
               RelationshipList(
                 relationships: rels,
                 readOnly: !canEdit,
+                onEntityTap: (entity) => _navigateToEntity(context, entity),
               ),
 
               // Edit / Delete actions
@@ -111,6 +132,23 @@ class TaskDetailPanel extends ConsumerWidget {
     );
   }
 
+  void _navigateToEntity(BuildContext context, RelatedEntity entity) {
+    switch (entity.type) {
+      case 'person':
+        GoRouter.of(context).go('/person/${entity.id}');
+      case 'task':
+        GoRouter.of(context).go('/tasks');
+      case 'sprint':
+        GoRouter.of(context).go('/sprints');
+      case 'document':
+        GoRouter.of(context).go('/documents');
+      case 'project':
+        GoRouter.of(context).go('/tasks');
+      default:
+        GoRouter.of(context).go('/my-page');
+    }
+  }
+
   Future<void> _showEditDialog(
       BuildContext context, WidgetRef ref, entity) async {
     final schemaAsync = ref.read(schemaProvider);
@@ -118,31 +156,71 @@ class TaskDetailPanel extends ConsumerWidget {
         .cast<EntityType?>()
         .firstWhere((t) => t?.key == 'task', orElse: () => null);
 
+    final bodyController = TextEditingController(text: entity.body ?? '');
+    final metadataFormKey = GlobalKey<MetadataFormState>();
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit Task'),
         content: SizedBox(
-          width: 400,
-          child: MetadataForm(
-            metadataSchema: taskType?.metadataSchema ?? {},
-            uiSchema: taskType?.uiSchema,
-            initialName: entity.name,
-            initialValues: Map<String, dynamic>.from(entity.metadata),
-            onSubmit: (name, metadata) async {
-              try {
-                await ref
-                    .read(entityDetailProvider(taskId).notifier)
-                    .update(name: name, metadata: metadata);
-                if (context.mounted) Navigator.of(context).pop(true);
-              } on ApiException catch (e) {
-                if (context.mounted) showErrorSnackbar(context, e.message);
-              }
-            },
+          width: 500,
+          height: MediaQuery.of(context).size.height * 0.7,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MetadataForm(
+                  key: metadataFormKey,
+                  metadataSchema: taskType?.metadataSchema ?? {},
+                  uiSchema: taskType?.uiSchema,
+                  initialName: entity.name,
+                  initialValues: Map<String, dynamic>.from(entity.metadata),
+                  showSubmitButton: false,
+                  onSubmit: (name, metadata) async {
+                    try {
+                      await ref
+                          .read(entityDetailProvider(taskId).notifier)
+                          .update(
+                            name: name,
+                            body: bodyController.text.isEmpty
+                                ? null
+                                : bodyController.text,
+                            metadata: metadata,
+                          );
+                      if (context.mounted) Navigator.of(context).pop(true);
+                    } on ApiException catch (e) {
+                      if (context.mounted) showErrorSnackbar(context, e.message);
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                Text('Description (Markdown)',
+                    style: Theme.of(context).textTheme.titleSmall),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: bodyController,
+                  maxLines: 6,
+                  decoration: const InputDecoration(
+                    hintText: 'Describe the task...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  onPressed: () =>
+                      metadataFormKey.currentState?.submit(),
+                  child: const Text('Save'),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
+
+    bodyController.dispose();
 
     if (result == true) {
       ref.invalidate(entityDetailProvider(taskId));

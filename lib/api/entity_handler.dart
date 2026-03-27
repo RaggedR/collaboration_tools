@@ -138,9 +138,10 @@ class EntityHandler {
         metadata: body['metadata'] as Map<String, dynamic>?,
       );
 
-      // Auto-archive documents when all parent tasks are done
+      // Auto-archive documents when all parent tasks are done/archived
       if (updated.type == 'task' &&
-          updated.metadata['status'] == 'done') {
+          (updated.metadata['status'] == 'done' ||
+           updated.metadata['status'] == 'archived')) {
         await _autoArchiveDocuments(updated.id);
       }
 
@@ -197,7 +198,7 @@ class EntityHandler {
       final allDone = parentTasks.every((r) {
         final meta = r.toColumnMap()['metadata'];
         if (meta is Map<String, dynamic>) {
-          return meta['status'] == 'done';
+          return meta['status'] == 'done' || meta['status'] == 'archived';
         }
         return false;
       });

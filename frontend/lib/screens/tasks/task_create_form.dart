@@ -19,6 +19,7 @@ class TaskCreateForm extends ConsumerStatefulWidget {
 
 class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
   final _metadataFormKey = GlobalKey<MetadataFormState>();
+  final _bodyController = TextEditingController();
   bool _isLoading = false;
   String? _error;
   List<Entity> _sprints = [];
@@ -30,6 +31,12 @@ class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
     super.initState();
     _selectedSprintId = widget.initialSprintId;
     _loadSprints();
+  }
+
+  @override
+  void dispose() {
+    _bodyController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadSprints() async {
@@ -45,6 +52,17 @@ class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
     } catch (_) {
       if (mounted) setState(() => _sprintsLoaded = true);
     }
+  }
+
+  /// Filter out fields we don't want in the create form.
+  Map<String, dynamic> _filteredSchema(Map<String, dynamic> schema) {
+    final filtered = Map<String, dynamic>.from(schema);
+    if (filtered['properties'] is Map) {
+      final props = Map<String, dynamic>.from(filtered['properties'] as Map);
+      props.remove('estimate');
+      filtered['properties'] = props;
+    }
+    return filtered;
   }
 
   @override
@@ -72,7 +90,7 @@ class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
               ],
               MetadataForm(
                 key: _metadataFormKey,
-                metadataSchema: taskType?.metadataSchema ?? {},
+                metadataSchema: _filteredSchema(taskType?.metadataSchema ?? {}),
                 uiSchema: taskType?.uiSchema,
                 isLoading: _isLoading,
                 showSubmitButton: false,
@@ -80,10 +98,24 @@ class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
               ),
               const SizedBox(height: 16),
 
+              // Description field
+              Text('Description',
+                  style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _bodyController,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  hintText: 'Describe the task...',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
               // Sprint selector
               if (_sprintsLoaded && _sprints.isNotEmpty)
                 DropdownButtonFormField<String>(
-                  value: _selectedSprintId,
+                  initialValue: _selectedSprintId,
                   decoration:
                       const InputDecoration(labelText: 'Sprint (optional)'),
                   items: [
@@ -128,8 +160,9 @@ class _TaskCreateFormState extends ConsumerState<TaskCreateForm> {
     });
     try {
       final api = ref.read(apiClientProvider);
+      final body = _bodyController.text.isNotEmpty ? _bodyController.text : null;
       final entity = await api.createEntity(
-          type: 'task', name: name, metadata: metadata);
+          type: 'task', name: name, body: body, metadata: metadata);
 
       // Link to sprint if selected
       if (_selectedSprintId != null) {
