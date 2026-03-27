@@ -120,6 +120,7 @@ class TaskBoardNotifier extends StateNotifier<TaskBoardState> {
         assigneeId: filters.assigneeId,
         priority: filters.priority,
         status: filters.status,
+        labels: filters.labels,
         sprintId: filters.sprintId,
         perPage: 200,
       );

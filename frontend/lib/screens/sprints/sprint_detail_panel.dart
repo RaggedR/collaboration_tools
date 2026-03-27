@@ -6,6 +6,7 @@ import '../../api/models/entity.dart';
 import '../../api/models/schema.dart';
 import '../../state/entity_detail_state.dart';
 import '../../state/providers.dart';
+import '../../state/sidebar_state.dart';
 import '../../widgets/shared/confirm_dialog.dart';
 import '../../widgets/shared/error_snackbar.dart';
 import '../../widgets/shared/metadata_form.dart';
@@ -140,7 +141,7 @@ class SprintDetailPanel extends ConsumerWidget {
                     const Text('Owner: '),
                     InkWell(
                       onTap: () => _navigateToEntity(
-                          context, ownerRels.first.relatedEntity),
+                          context, ref, ownerRels.first.relatedEntity),
                       child: Text(
                         ownerRels.first.relatedEntity.name,
                         style: TextStyle(
@@ -179,7 +180,7 @@ class SprintDetailPanel extends ConsumerWidget {
                     margin: const EdgeInsets.only(bottom: 8),
                     child: InkWell(
                       onTap: () => _navigateToEntity(
-                          context, rel.relatedEntity),
+                          context, ref, rel.relatedEntity),
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
                       padding: const EdgeInsets.all(12),
@@ -294,7 +295,7 @@ class SprintDetailPanel extends ConsumerWidget {
                   relationships: otherRels,
                   readOnly: !canEdit,
                   onEntityTap: (entity) =>
-                      _navigateToEntity(context, entity),
+                      _navigateToEntity(context, ref, entity),
                 ),
 
               // Sprint Retro
@@ -407,15 +408,18 @@ class SprintDetailPanel extends ConsumerWidget {
     );
   }
 
-  void _navigateToEntity(BuildContext context, RelatedEntity entity) {
+  void _navigateToEntity(
+      BuildContext context, WidgetRef ref, RelatedEntity entity) {
     switch (entity.type) {
       case 'person':
         GoRouter.of(context).go('/person/${entity.id}');
       case 'task':
+        ref.read(pendingTaskSelectionProvider.notifier).state = entity.id;
         GoRouter.of(context).go('/tasks');
       case 'sprint':
         GoRouter.of(context).go('/sprints');
       case 'document':
+        ref.read(pendingDocumentSelectionProvider.notifier).state = entity.id;
         GoRouter.of(context).go('/documents');
       case 'project':
         GoRouter.of(context).go('/tasks');

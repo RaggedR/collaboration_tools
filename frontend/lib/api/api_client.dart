@@ -176,6 +176,7 @@ class ApiClient {
   Future<PaginatedEntities> listTasks({
     String? status,
     String? priority,
+    List<String>? labels,
     String? assigneeId,
     String? sprintId,
     String? projectId,
@@ -183,10 +184,11 @@ class ApiClient {
     int perPage = 50,
   }) {
     Map<String, dynamic>? metadata;
-    if (status != null || priority != null) {
+    if (status != null || priority != null || labels != null) {
       metadata = {};
       if (status != null) metadata['status'] = status;
       if (priority != null) metadata['priority'] = priority;
+      if (labels != null) metadata['labels'] = labels;
     }
     return listEntities(
       type: 'task',
